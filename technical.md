@@ -8,7 +8,7 @@ main goal:
 todo(R&D):
 step 1:
     write an auto test for it
-    test and debug for 2 day's
+    test and debug for 1 day's
     put script aside if successful
 
 step 2:
