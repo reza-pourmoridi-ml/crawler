@@ -1,10 +1,11 @@
 import asyncio
 import json
-import os
+import random
 import re
 import shutil
 from pathlib import Path
 from datetime import datetime
+
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 # آدرس هدف تست
@@ -22,9 +23,9 @@ TARGET_URL = "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&in
 #
 # TARGET_URL = "https://ghasedak24.com/flights/THR-MHD?departure-date=1405-05-02&adult-count=1&child-count=0&infant-count=0"
 # TARGET_URL = "https://ghasedak24.com/flights/IKA-ISTALL?departure-date=1405-05-02&adult-count=1&child-count=0&infant-count=0&cabin=Y"
+
 OUTPUT_DIR = Path("alibaba_raw_data")
 OUTPUT_DIR.mkdir(exist_ok=True)
-AUTH_STATE_FILE = Path("auth_state.json")
 
 
 def clean_filename(name: str) -> str:
@@ -47,18 +48,118 @@ def find_chromium_executable():
     )
 
 
-async def human_like_scroll(page, steps=15, scroll_delay=1200):
-    """
-    اسکرول شبیه‌سازی شده به رفتار انسان برای باز کردن کارت‌های Lazy Load
-    """
-    print("[*] Starting smart scroll to trigger lazy loading...")
-    for step in range(steps):
-        await page.mouse.wheel(0, 1500)
-        await page.wait_for_timeout(scroll_delay)
+def random_delay_ms(min_ms=250, max_ms=900):
+    return random.randint(min_ms, max_ms)
 
-        if step % 3 == 0:
-            await page.mouse.wheel(0, -200)
-            await page.wait_for_timeout(300)
+
+async def human_pause(page, min_ms=250, max_ms=900):
+    await page.wait_for_timeout(random_delay_ms(min_ms, max_ms))
+
+
+async def move_mouse_naturally(page, x2, y2, steps=None):
+    viewport = page.viewport_size or {"width": 1440, "height": 900}
+    x1 = random.randint(50, max(60, viewport["width"] - 50))
+    y1 = random.randint(50, max(60, viewport["height"] - 50))
+
+    if steps is None:
+        steps = random.randint(12, 24)
+
+    await page.mouse.move(x1, y1)
+    await human_pause(page, 80, 180)
+    await page.mouse.move(x2, y2, steps=steps)
+
+
+async def hover_visible_elements(page, max_hovers=3):
+    selectors = [
+        "[class*='card']",
+        "[class*='Card']",
+        "[class*='flight']",
+        "[class*='Flight']",
+        "article",
+        "button",
+        "a",
+    ]
+
+    hovered = 0
+
+    for selector in selectors:
+        if hovered >= max_hovers:
+            break
+
+        locator = page.locator(selector)
+        try:
+            count = await locator.count()
+        except Exception:
+            continue
+
+        sample_size = min(count, 8)
+        if sample_size <= 0:
+            continue
+
+        indices = list(range(sample_size))
+        random.shuffle(indices)
+
+        for idx in indices:
+            if hovered >= max_hovers:
+                break
+
+            item = locator.nth(idx)
+            try:
+                await item.scroll_into_view_if_needed(timeout=1500)
+                box = await item.bounding_box()
+                if not box or box["width"] < 40 or box["height"] < 20:
+                    continue
+
+                target_x = int(box["x"] + min(box["width"] * 0.5, box["width"] - 5))
+                target_y = int(box["y"] + min(box["height"] * 0.5, box["height"] - 5))
+
+                await move_mouse_naturally(page, target_x, target_y, steps=random.randint(10, 18))
+                await item.hover(timeout=1200)
+                await human_pause(page, 180, 650)
+                hovered += 1
+            except Exception:
+                continue
+
+
+async def human_like_scroll(page, max_steps=10):
+    """
+    اسکرول با فاصله و مکث غیرثابت + توقف وقتی ارتفاع صفحه دیگر رشد نکند.
+    """
+    print("[*] Starting adaptive scroll to trigger lazy loading...")
+
+    stable_rounds = 0
+    previous_height = await page.evaluate("() => document.body.scrollHeight")
+
+    for step in range(max_steps):
+        distance = random.randint(700, 1500)
+        await page.mouse.wheel(0, distance)
+
+        if random.random() < 0.35:
+            await human_pause(page, 250, 600)
+            await page.mouse.wheel(0, -random.randint(80, 260))
+
+        if random.random() < 0.45:
+            await hover_visible_elements(page, max_hovers=random.randint(1, 2))
+
+        await human_pause(page, 500, 1100)
+
+        current_height = await page.evaluate("() => document.body.scrollHeight")
+        viewport_height = await page.evaluate("() => window.innerHeight")
+        scroll_y = await page.evaluate("() => window.scrollY")
+        near_bottom = scroll_y + viewport_height >= current_height - 250
+
+        if current_height <= previous_height + 80:
+            stable_rounds += 1
+        else:
+            stable_rounds = 0
+
+        previous_height = current_height
+
+        if near_bottom and stable_rounds >= 2:
+            break
+
+        if stable_rounds >= 3:
+            break
 
 
 async def detect_block_or_captcha(page):
@@ -153,7 +254,7 @@ async def extract_visible_cards(page):
                             candidates.append({
                                 "selector": selector,
                                 "index": i,
-                                "text": normalized[:4000]
+                                "text": normalized[:4000],
                             })
                 except Exception:
                     pass
@@ -170,20 +271,20 @@ async def extract_alibaba_data():
     network_responses = []
     network_requests = []
 
-    AUTH_STATE_FILE = Path("auth/alibaba.json")
-    HEADLESS_MODE = True
+    auth_state_file = Path("auth/alibaba.json")
+    headless_mode = True
 
     executable_path = find_chromium_executable()
     print(f"[*] Using Chromium executable: {executable_path}")
 
-    if not AUTH_STATE_FILE.exists():
-        print(f"[!] Auth state file not found: {AUTH_STATE_FILE}")
+    if not auth_state_file.exists():
+        print(f"[!] Auth state file not found: {auth_state_file}")
         print("[!] First run save_auth.py locally, then copy auth/alibaba.json to the server.")
         return
 
     async with async_playwright() as p:
         context_args = {
-            "storage_state": str(AUTH_STATE_FILE),
+            "storage_state": str(auth_state_file),
             "user_agent": (
                 "Mozilla/5.0 (X11; Linux x86_64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -199,7 +300,7 @@ async def extract_alibaba_data():
 
         browser = await p.chromium.launch(
             executable_path=executable_path,
-            headless=HEADLESS_MODE,
+            headless=headless_mode,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -237,10 +338,10 @@ async def extract_alibaba_data():
                 content_type = response.headers.get("content-type", "")
 
                 if (
-                        "application/json" in content_type
-                        or "api" in url.lower()
-                        or "flight" in url.lower()
-                        or "graphql" in url.lower()
+                    "application/json" in content_type
+                    or "api" in url.lower()
+                    or "flight" in url.lower()
+                    or "graphql" in url.lower()
                 ):
                     body = await response.text()
                     network_responses.append({
@@ -263,12 +364,14 @@ async def extract_alibaba_data():
                 wait_until="domcontentloaded",
                 timeout=30000,
             )
-            await page.wait_for_timeout(3000)
+            await human_pause(page, 1200, 2600)
+            await hover_visible_elements(page, max_hovers=2)
         except Exception as e:
             print(f"[!] Warning: Initial home navigation issue, continuing... Error: {e}")
 
         print(f"[*] Navigating to flight search page: {TARGET_URL}")
         try:
+            await human_pause(page, 400, 1200)
             await page.goto(
                 TARGET_URL,
                 wait_until="domcontentloaded",
@@ -282,7 +385,9 @@ async def extract_alibaba_data():
         except PlaywrightTimeoutError:
             print("[!] networkidle timeout; continuing with current DOM.")
 
-        # بررسی اینکه سشن هنوز معتبر است یا نه.
+        await human_pause(page, 600, 1400)
+        await hover_visible_elements(page, max_hovers=2)
+
         login_required = False
 
         try:
@@ -317,8 +422,8 @@ async def extract_alibaba_data():
             except PlaywrightTimeoutError:
                 pass
 
-        await human_like_scroll(page, steps=12, scroll_delay=1200)
-        await page.wait_for_timeout(4000)
+        await human_like_scroll(page, max_steps=10)
+        await human_pause(page, 1800, 3200)
 
         current_url = page.url
         page_title = await page.title()
@@ -368,8 +473,8 @@ async def extract_alibaba_data():
             "title": page_title,
             "timestamp": timestamp,
             "chromium_executable": executable_path,
-            "auth_state_file": str(AUTH_STATE_FILE),
-            "headless": HEADLESS_MODE,
+            "auth_state_file": str(auth_state_file),
+            "headless": headless_mode,
         }
 
         meta_path = OUTPUT_DIR / f"{file_prefix}_meta.json"
@@ -379,10 +484,9 @@ async def extract_alibaba_data():
         )
         print(f"[+] Meta info saved to: {meta_path}")
 
-        # ذخیره مجدد سشن، چون ممکن است سایت Cookie یا Token را تمدید کرده باشد.
         try:
-            await context.storage_state(path=str(AUTH_STATE_FILE))
-            print(f"[+] Auth state refreshed: {AUTH_STATE_FILE}")
+            await context.storage_state(path=str(auth_state_file))
+            print(f"[+] Auth state refreshed: {auth_state_file}")
         except Exception as e:
             print(f"[!] Could not refresh auth state: {e}")
 

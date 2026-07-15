@@ -7,7 +7,6 @@ main goal:
 
 todo(R&D):
 step 1:
-    handle captcha somehow
     write an auto test for it
     test and debug for 2 day's
     put script aside if successful
