@@ -7,9 +7,9 @@ main goal:
 
 todo(R&D):
 step 1:
-    write an auto test for it
     test and debug for 1 day's
-    put script aside if successful
+        test again for one hour
+        monitor stored data
 
 step 2:
     connect to an llm using postman
@@ -20,7 +20,7 @@ step 2:
     internalize llm in script
     put it aside if successful, if not find another way
 
-go for architect
+go for architect and normalize the codes
 
 
 Alibaba.ir
