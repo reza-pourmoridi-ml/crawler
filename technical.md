@@ -15,7 +15,7 @@ step 2:
     write an auto test and test whole system for 1 hour
     put it aside if successful, if not find another way
 
-go for architect and normalize the codes
+go for architect and normalize the codes.
 
 
 Alibaba.ir
