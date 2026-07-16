@@ -8,7 +8,7 @@ from datetime import datetime
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
-HARD_PAUSE_LOAD_TIME = 15
+HARD_PAUSE_LOAD_TIME = 20
 OUTPUT_DIR = Path("alibaba_raw_data")
 OUTPUT_DIR.mkdir(exist_ok=True)
 

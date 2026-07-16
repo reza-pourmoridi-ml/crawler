@@ -6,18 +6,13 @@ main goal:
 
 
 todo(R&D):
-step 1:
-    test and debug for 1 day's
-        test again for one hour
-        monitor stored data
-
 step 2:
     connect to an llm using postman
     give raw data to it and test if gives you good selectors
     write a pythong script for testing selectors
-    create a standard loop using llm
-    test and debug loop using script and raw data of 4 website
-    internalize llm in script
+    create a standard loop embedding llm
+    test and debug loop using script and raw data of 5 website
+    write an auto test and test whole system for 1 hour
     put it aside if successful, if not find another way
 
 go for architect and normalize the codes
