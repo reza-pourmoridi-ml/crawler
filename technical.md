@@ -7,13 +7,11 @@ main goal:
 
 todo(R&D):
 step 2:
-    connect to an llm using postman
+    bring up ollama with enough speed on cpu
+    find a port for it to test
     give raw data to it and test if gives you good selectors
-    write a pythong script for testing selectors
-    create a standard loop embedding llm
-    test and debug loop using script and raw data of 5 website
-    write an auto test and test whole system for 1 hour
-    put it aside if successful, if not find another way
+    write a pythong script for testing selectors for all websites
+    create an script that using llm and for specific file return selectors
 
 go for architect and normalize the codes.
 

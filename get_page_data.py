@@ -254,7 +254,7 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
     file_prefix = f"{timestamp}_{sanitized_url}"
     network_responses = []
     network_requests = []
-    auth_state_file = Path("auth/alibaba.json")
+    auth_state_file = Path("auth/auth.json")
     # executable_path = find_chromium_executable()
     # print(f"[*] Using Chromium executable: {executable_path}")
     has_auth_file = auth_state_file.exists()
