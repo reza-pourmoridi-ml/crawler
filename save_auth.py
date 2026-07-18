@@ -1,5 +1,5 @@
 import asyncio
-import shutil
+import time
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -9,49 +9,36 @@ AUTH_DIR = Path("auth")
 AUTH_DIR.mkdir(parents=True, exist_ok=True)
 
 AUTH_STATE_FILE = AUTH_DIR / "alibaba.json"
-
 LOGIN_URL = "https://www.alibaba.ir/"
+START_TIME = time.monotonic()
 
 
-def find_chromium_executable():
-    candidates = [
-        "google-chrome",
-        "google-chrome-stable",
-        "chromium",
-        "chromium-browser",
-        "msedge",
-        "microsoft-edge",
-    ]
-
-    for name in candidates:
-        path = shutil.which(name)
-        if path:
-            return path
-
-    return None
+def log(message: str) -> None:
+    elapsed = time.monotonic() - START_TIME
+    print(f"[{elapsed:7.2f}s] {message}", flush=True)
 
 
 async def save_auth():
-    executable_path = find_chromium_executable()
-    print(f"[*] Chromium executable: {executable_path or 'Playwright default'}")
+    log("Starting Playwright")
 
     async with async_playwright() as p:
-        launch_args = {
-            "headless": False,
-            "args": [
-                "--disable-blink-features=AutomationControlled",
+        log("Launching Chromium")
+
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
                 "--no-sandbox",
-                "--disable-dev-shm-usage",
                 "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
                 "--disable-infobars",
+                "--ozone-platform=x11",
+                "--use-gl=angle",
+                "--use-angle=swiftshader",
                 "--window-size=1440,900",
             ],
-        }
+        )
 
-        if executable_path:
-            launch_args["executable_path"] = executable_path
-
-        browser = await p.chromium.launch(**launch_args)
+        log("Chromium launched")
 
         context = await browser.new_context(
             user_agent=(
@@ -67,16 +54,22 @@ async def save_auth():
             ignore_https_errors=True,
         )
 
-        await context.add_init_script("""
+        log("Context created")
+
+        await context.add_init_script(
+            """
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
-        """)
+            """
+        )
 
         page = await context.new_page()
+        log("Page created")
 
-        print(f"[*] Opening: {LOGIN_URL}")
+        log(f"Opening {LOGIN_URL}")
         await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
+        log("Page loaded")
 
         print()
         print("[*] داخل مرورگر لاگین کن.")
@@ -87,8 +80,6 @@ async def save_auth():
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, input)
 
-        # ذخیره Cookie و LocalStorage.
-        # اگر نسخه Playwright جدید باشد، IndexedDB هم ذخیره می‌شود.
         try:
             await context.storage_state(
                 path=str(AUTH_STATE_FILE),
@@ -98,7 +89,6 @@ async def save_auth():
             await context.storage_state(path=str(AUTH_STATE_FILE))
 
         print(f"[+] Auth state saved to: {AUTH_STATE_FILE.resolve()}")
-
         await browser.close()
 
 

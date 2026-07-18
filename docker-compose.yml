@@ -15,15 +15,38 @@ services:
     container_name: crawler
     init: true
     shm_size: "2gb"
-    depends_on:
-      - ollama
     environment:
       PYTHONUNBUFFERED: "1"
       OLLAMA_HOST: "http://ollama:11434"
+      DISPLAY: "${DISPLAY}"
+      XAUTHORITY: "/tmp/.docker.xauth"
     volumes:
       - ./alibaba_raw_data:/app/alibaba_raw_data
       - ./auth:/app/auth
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
     restart: "no"
+
+  save-auth:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    init: true
+    shm_size: "2gb"
+    stdin_open: true
+    tty: true
+    command: python save_auth.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DISPLAY: "${DISPLAY}"
+      XAUTHORITY: "/tmp/.docker.xauth"
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
+    restart: "no"
+
+
 
 volumes:
   ollama_data:

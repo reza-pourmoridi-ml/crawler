@@ -21,3 +21,7 @@ docker compose exec ollama ollama list
 
 Test prompt:
 docker compose exec ollama ollama run qwen2.5-coder:3b
+
+
+
+docker compose run --rm --no-deps save-auth
