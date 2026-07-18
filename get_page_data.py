@@ -255,8 +255,8 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
     network_responses = []
     network_requests = []
     auth_state_file = Path("auth/alibaba.json")
-    executable_path = find_chromium_executable()
-    print(f"[*] Using Chromium executable: {executable_path}")
+    # executable_path = find_chromium_executable()
+    # print(f"[*] Using Chromium executable: {executable_path}")
     has_auth_file = auth_state_file.exists()
 
     async with async_playwright() as p:
@@ -273,7 +273,7 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
             context_args["storage_state"] = str(auth_state_file)
 
         browser = await p.chromium.launch(
-            executable_path=executable_path,
+            # executable_path=executable_path,
             headless=headless_mode,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
         )

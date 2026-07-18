@@ -8,5 +8,22 @@ services:
       - ollama_data:/root/.ollama
     restart: unless-stopped
 
+  crawler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: crawler
+    init: true
+    shm_size: "2gb"
+    depends_on:
+      - ollama
+    environment:
+      PYTHONUNBUFFERED: "1"
+      OLLAMA_HOST: "http://ollama:11434"
+    volumes:
+      - ./alibaba_raw_data:/app/alibaba_raw_data
+      - ./auth:/app/auth
+    restart: "no"
+
 volumes:
   ollama_data:
