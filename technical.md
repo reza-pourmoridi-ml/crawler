@@ -4,14 +4,18 @@ main goal:
     best case scenario: is that all process can be done only using a basic linux without ui server.
 
 
+tody output: get confident about local llm
 
 todo(R&D):
 step 2:
-    bring up ollama with enough speed on cpu
-    find a port for it to test
-    give raw data to it and test if gives you good selectors
-    write a pythong script for testing selectors for all websites
-    create an script that using llm and for specific file return selectors
+    test if it can extract appropriate selectors with more than 99 % confidence
+    go for bigger models if needed
+    test selectors manual
+    write a python script for using selectors
+    test llm for all websites
+    create an script that using llm(prompted) return selectors
+    create an script using two befor to turn raw data to final results
+    test and debug for all websites
 
 go for architect and normalize the codes.
 
