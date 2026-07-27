@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ایمپورت متد اصلی از get_page_data
-from get_page_data import extract_alibaba_data
+from get_page_compact import extract_alibaba_data
 
 RESULTS_FILE = Path("daily_test_results.jsonl")
 STATE_FILE = Path("daily_test_state.json")
 
 URLS = [
     "https://www.alibaba.ir/flights/THR-MHD?adult=1&child=0&infant=0&departing=1405-05-02",
-    "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&infant=0&departing=1405-05-02&flightClass=economy",
+    # "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&infant=0&departing=1405-05-02&flightClass=economy",
     "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-07-24&source=searchBox&dateType=jalali",
     "https://www.snapptrip.ir/inter-flights/THR_city/IST_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-07-24&source=searchBox&dateType=jalali&cabinType=ECONOMY",
     "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=mhd,1&departureDate=2026-07-24&adt=1&chd=0&inf=0&cabin=1&isDomestic=true&isAnyWhere=false",

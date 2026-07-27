@@ -116,7 +116,12 @@ async def hover_visible_elements(page, max_hovers=3):
                     continue
                 target_x = int(box["x"] + min(box["width"] * 0.5, box["width"] - 5))
                 target_y = int(box["y"] + min(box["height"] * 0.5, box["height"] - 5))
-                await move_mouse_naturally(page, target_x, target_y, steps=random.randint(10, 18))
+                await move_mouse_naturally(
+                    page,
+                    target_x,
+                    target_y,
+                    steps=random.randint(10, 18),
+                )
                 await item.hover(timeout=1200)
                 await human_pause(page, 180, 650)
                 hovered += 1
@@ -190,7 +195,11 @@ async def detect_block_or_captcha(page):
     return matched
 
 
-async def wait_for_manual_resolution_if_needed(page, headless: bool, timeout_sec: int = 120) -> str:
+async def wait_for_manual_resolution_if_needed(
+    page,
+    headless: bool,
+    timeout_sec: int = 120,
+) -> str:
     matched = await detect_block_or_captcha(page)
     if not matched:
         return "clean"
@@ -200,7 +209,10 @@ async def wait_for_manual_resolution_if_needed(page, headless: bool, timeout_sec
         print("[!] Headless mode is active. Cannot wait for manual input.")
         return "captcha_detected"
 
-    print(f"[!] Headless is disabled. You have {timeout_sec} seconds to resolve it in the UI...")
+    print(
+        f"[!] Headless is disabled. You have {timeout_sec} seconds "
+        "to resolve it in the UI..."
+    )
     start_time = asyncio.get_running_loop().time()
     while asyncio.get_running_loop().time() - start_time < timeout_sec:
         await asyncio.sleep(5)
@@ -238,7 +250,11 @@ async def extract_visible_cards(page):
                         if normalized not in seen:
                             seen.add(normalized)
                             candidates.append(
-                                {"selector": selector, "index": i, "text": normalized[:4000]}
+                                {
+                                    "selector": selector,
+                                    "index": i,
+                                    "text": normalized[:4000],
+                                }
                             )
                 except Exception:
                     pass
@@ -248,7 +264,263 @@ async def extract_visible_cards(page):
     return candidates
 
 
-async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> dict:
+async def extract_texts_grouped_by_dom_address(page) -> dict:
+    """
+    متن‌های مستقیم عناصر را استخراج می‌کند و براساس آدرس DOM
+    در یک ساختار JSON دسته‌بندی می‌کند.
+    """
+    return await page.evaluate(
+        """
+        () => {
+            function normalizeText(value) {
+                return (value || "").replace(/\\s+/g, " ").trim();
+            }
+
+            function escapeCssIdentifier(value) {
+                if (
+                    window.CSS &&
+                    typeof window.CSS.escape === "function"
+                ) {
+                    return CSS.escape(value);
+                }
+
+                return String(value).replace(
+                    /([^a-zA-Z0-9_-])/g,
+                    "\\\\$1"
+                );
+            }
+
+            function getElementClasses(element) {
+                if (!element || !element.classList) {
+                    return [];
+                }
+
+                return Array.from(element.classList)
+                    .map((className) => className.trim())
+                    .filter(Boolean)
+                    .sort();
+            }
+
+            function getDomAddress(element) {
+                if (
+                    !element ||
+                    element.nodeType !== Node.ELEMENT_NODE
+                ) {
+                    return null;
+                }
+
+                const parts = [];
+                let current = element;
+
+                while (
+                    current &&
+                    current.nodeType === Node.ELEMENT_NODE
+                ) {
+                    const tagName = current.tagName.toLowerCase();
+
+                    if (current.id) {
+                        parts.unshift(
+                            `${tagName}#${escapeCssIdentifier(current.id)}`
+                        );
+                        break;
+                    }
+
+                    let addressPart = tagName;
+                    const parent = current.parentElement;
+
+                    if (parent) {
+                        const sameTagSiblings = Array.from(
+                            parent.children
+                        ).filter(
+                            (sibling) =>
+                                sibling.tagName === current.tagName
+                        );
+
+                        if (sameTagSiblings.length > 1) {
+                            const index =
+                                sameTagSiblings.indexOf(current) + 1;
+                            addressPart += `:nth-of-type(${index})`;
+                        }
+                    }
+
+                    parts.unshift(addressPart);
+                    current = parent;
+                }
+
+                return parts.join(" > ");
+            }
+
+            function stableHash(value) {
+                let hash1 = 0xdeadbeef ^ value.length;
+                let hash2 = 0x41c6ce57 ^ value.length;
+
+                for (let i = 0; i < value.length; i++) {
+                    const charCode = value.charCodeAt(i);
+
+                    hash1 = Math.imul(
+                        hash1 ^ charCode,
+                        2654435761
+                    );
+
+                    hash2 = Math.imul(
+                        hash2 ^ charCode,
+                        1597334677
+                    );
+                }
+
+                hash1 =
+                    Math.imul(
+                        hash1 ^ (hash1 >>> 16),
+                        2246822507
+                    ) ^
+                    Math.imul(
+                        hash2 ^ (hash2 >>> 13),
+                        3266489909
+                    );
+
+                hash2 =
+                    Math.imul(
+                        hash2 ^ (hash2 >>> 16),
+                        2246822507
+                    ) ^
+                    Math.imul(
+                        hash1 ^ (hash1 >>> 13),
+                        3266489909
+                    );
+
+                const firstPart = (hash2 >>> 0)
+                    .toString(16)
+                    .padStart(8, "0");
+
+                const secondPart = (hash1 >>> 0)
+                    .toString(16)
+                    .padStart(8, "0");
+
+                return `${firstPart}${secondPart}`;
+            }
+
+            function isIgnoredElement(element) {
+                if (!element || !element.tagName) {
+                    return true;
+                }
+
+                const ignoredTags = new Set([
+                    "SCRIPT",
+                    "STYLE",
+                    "NOSCRIPT",
+                    "TEMPLATE",
+                    "SVG",
+                    "PATH",
+                    "META",
+                    "LINK",
+                    "HEAD",
+                    "TITLE"
+                ]);
+
+                return ignoredTags.has(element.tagName);
+            }
+
+            function isElementVisible(element) {
+                if (!element || !element.isConnected) {
+                    return false;
+                }
+
+                const style = window.getComputedStyle(element);
+
+                if (
+                    style.display === "none" ||
+                    style.visibility === "hidden" ||
+                    style.visibility === "collapse" ||
+                    Number(style.opacity) === 0
+                ) {
+                    return false;
+                }
+
+                return element.getClientRects().length > 0;
+            }
+
+            const groupedTexts = {};
+            const elements = document.body
+                ? document.body.querySelectorAll("*")
+                : [];
+
+            for (const element of elements) {
+                if (
+                    isIgnoredElement(element) ||
+                    !isElementVisible(element)
+                ) {
+                    continue;
+                }
+
+                const directTextParts = Array.from(
+                    element.childNodes
+                )
+                    .filter(
+                        (node) =>
+                            node.nodeType === Node.TEXT_NODE
+                    )
+                    .map(
+                        (node) =>
+                            normalizeText(node.textContent)
+                    )
+                    .filter(Boolean);
+
+                if (directTextParts.length === 0) {
+                    continue;
+                }
+
+                const text = normalizeText(
+                    directTextParts.join(" ")
+                );
+
+                if (!text) {
+                    continue;
+                }
+
+                const domAddress = getDomAddress(element);
+
+                if (!domAddress) {
+                    continue;
+                }
+
+                const classes = getElementClasses(element);
+                const classSignature =
+                    classes.length > 0
+                        ? classes.join(".")
+                        : "__no_class__";
+
+                const uniqueIdSource = [
+                    classSignature,
+                    domAddress,
+                    text
+                ].join("|");
+
+                const uniqueId =
+                    `text_${stableHash(uniqueIdSource)}`;
+
+                if (!groupedTexts[domAddress]) {
+                    groupedTexts[domAddress] = [];
+                }
+
+                groupedTexts[domAddress].push({
+                    id: uniqueId,
+                    tag: element.tagName.toLowerCase(),
+                    classes: classes,
+                    class_signature: classSignature,
+                    text: text
+                });
+            }
+
+            return groupedTexts;
+        }
+        """
+    )
+
+
+async def extract_alibaba_data(
+    target_url: str,
+    headless_mode: bool = True,
+) -> dict:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     sanitized_url = clean_filename(target_url.split("?")[0].split("//")[-1])
     file_prefix = f"{timestamp}_{sanitized_url}"
@@ -261,7 +533,11 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
 
     async with async_playwright() as p:
         context_args = {
-            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "user_agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
             "viewport": {"width": 1440, "height": 900},
             "locale": "fa-IR",
             "timezone_id": "Asia/Tehran",
@@ -275,11 +551,16 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
         browser = await p.chromium.launch(
             # executable_path=executable_path,
             headless=headless_mode,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+            ],
         )
         context = await browser.new_context(**context_args)
         await context.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            "Object.defineProperty("
+            "navigator, 'webdriver', {get: () => undefined}"
+            ");"
         )
         page = await context.new_page()
 
@@ -300,28 +581,47 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
                 url = response.url
                 content_type = response.headers.get("content-type", "")
                 if "application/json" in content_type or any(
-                    x in url.lower() for x in ["api", "flight", "graphql"]
+                    x in url.lower()
+                    for x in ["api", "flight", "graphql"]
                 ):
                     body = await response.text()
                     network_responses.append(
-                        {"url": url, "status": response.status, "data_preview": body[:10000]}
+                        {
+                            "url": url,
+                            "status": response.status,
+                            "data_preview": body[:10000],
+                        }
                     )
             except Exception:
                 pass
 
-        page.on("request", lambda req: asyncio.create_task(log_request(req)))
-        page.on("response", lambda res: asyncio.create_task(capture_network(res)))
+        page.on(
+            "request",
+            lambda req: asyncio.create_task(log_request(req)),
+        )
+        page.on(
+            "response",
+            lambda res: asyncio.create_task(capture_network(res)),
+        )
 
         if "alibaba.ir" in target_url:
             try:
-                await page.goto("https://www.alibaba.ir", wait_until="domcontentloaded", timeout=20000)
+                await page.goto(
+                    "https://www.alibaba.ir",
+                    wait_until="domcontentloaded",
+                    timeout=20000,
+                )
                 await human_pause(page, 1000, 2000)
             except Exception:
                 pass
 
         print(f"[*] Navigating to: {target_url}")
         try:
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=50000)
+            await page.goto(
+                target_url,
+                wait_until="domcontentloaded",
+                timeout=50000,
+            )
         except PlaywrightTimeoutError:
             print("[!] Timeout on initial load.")
 
@@ -329,57 +629,84 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
         await asyncio.sleep(HARD_PAUSE_LOAD_TIME)
 
         if "alibaba.ir" in target_url:
-            login_req = await page.query_selector("input[type='tel']") or await page.query_selector(
-                "text='ورود یا ثبت‌نام'"
+            login_req = (
+                await page.query_selector("input[type='tel']")
+                or await page.query_selector("text='ورود یا ثبت‌نام'")
             )
             if login_req:
-                screenshot_path = OUTPUT_DIR / f"{file_prefix}_auth_required.png"
-                await page.screenshot(path=str(screenshot_path), full_page=True)
+                screenshot_path = (
+                    OUTPUT_DIR / f"{file_prefix}_auth_required.png"
+                )
+                await page.screenshot(
+                    path=str(screenshot_path),
+                    full_page=True,
+                )
                 await browser.close()
-                return {"status": "auth_required", "screenshot": str(screenshot_path)}
+                return {
+                    "status": "auth_required",
+                    "screenshot": str(screenshot_path),
+                }
 
-        captcha_status = await wait_for_manual_resolution_if_needed(page, headless_mode)
-        if captcha_status in ["captcha_detected", "captcha_timeout"]:
-            screenshot_path = OUTPUT_DIR / f"{file_prefix}_captcha.png"
-            await page.screenshot(path=str(screenshot_path), full_page=True)
+        captcha_status = await wait_for_manual_resolution_if_needed(
+            page,
+            headless_mode,
+        )
+        if captcha_status in [
+            "captcha_detected",
+            "captcha_timeout",
+        ]:
+            screenshot_path = (
+                OUTPUT_DIR / f"{file_prefix}_captcha.png"
+            )
+            await page.screenshot(
+                path=str(screenshot_path),
+                full_page=True,
+            )
             await browser.close()
-            return {"status": captcha_status, "screenshot": str(screenshot_path)}
+            return {
+                "status": captcha_status,
+                "screenshot": str(screenshot_path),
+            }
 
         await human_like_scroll(page, max_steps=8)
-        await wait_for_page_stability(page, stability_window_ms=3000)
+        await wait_for_page_stability(
+            page,
+            stability_window_ms=3000,
+        )
 
         current_url = page.url
 
         dom_content = await page.content()
         dom_path = OUTPUT_DIR / f"{file_prefix}.html"
-        dom_path.write_text(dom_content, encoding="utf-8")
-
-        raw_text_path = OUTPUT_DIR / f"{file_prefix}_text.txt"
-        try:
-            raw_text = await page.locator("body").inner_text(timeout=5000)
-        except Exception:
-            raw_text = ""
-        raw_text_path.write_text(raw_text, encoding="utf-8")
-
-        screenshot_path = OUTPUT_DIR / f"{file_prefix}.png"
-        await page.screenshot(path=str(screenshot_path), full_page=True)
-
-        network_path = OUTPUT_DIR / f"{file_prefix}_network.json"
-        network_path.write_text(
-            json.dumps(network_responses, ensure_ascii=False, indent=2),
+        dom_path.write_text(
+            dom_content,
             encoding="utf-8",
         )
 
-        cards_path = OUTPUT_DIR / f"{file_prefix}_cards.json"
-        card_candidates = await extract_visible_cards(page)
-        cards_path.write_text(
-            json.dumps(card_candidates, ensure_ascii=False, indent=2),
+        screenshot_path = OUTPUT_DIR / f"{file_prefix}.png"
+        await page.screenshot(
+            path=str(screenshot_path),
+            full_page=True,
+        )
+
+        grouped_texts = await extract_texts_grouped_by_dom_address(
+            page
+        )
+        texts_path = OUTPUT_DIR / f"{file_prefix}_texts.json"
+        texts_path.write_text(
+            json.dumps(
+                grouped_texts,
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
 
         if "alibaba.ir" in target_url and has_auth_file:
             try:
-                await context.storage_state(path=str(auth_state_file))
+                await context.storage_state(
+                    path=str(auth_state_file)
+                )
             except Exception:
                 pass
 
@@ -388,13 +715,19 @@ async def extract_alibaba_data(target_url: str, headless_mode: bool = True) -> d
             "status": "success",
             "url": current_url,
             "dom_path": str(dom_path),
-            "raw_text_path": str(raw_text_path),
             "screenshot_path": str(screenshot_path),
-            "network_path": str(network_path),
-            "cards_path": str(cards_path),
+            "texts_path": str(texts_path),
         }
 
 
 if __name__ == "__main__":
-    test_url = "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&departureDate=2026-07-24"
-    asyncio.run(extract_alibaba_data(test_url, headless_mode=True))
+    test_url = (
+        "https://www.snapptrip.ir/flights/THR_city/MHD_city"
+        "?adultCount=1&departureDate=2026-07-24"
+    )
+    asyncio.run(
+        extract_alibaba_data(
+            test_url,
+            headless_mode=True,
+        )
+    )

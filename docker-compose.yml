@@ -21,8 +21,7 @@ services:
       DISPLAY: "${DISPLAY}"
       XAUTHORITY: "/tmp/.docker.xauth"
     volumes:
-      - ./alibaba_raw_data:/app/alibaba_raw_data
-      - ./auth:/app/auth
+      - .:/app
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
     restart: "no"
@@ -45,8 +44,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
     restart: "no"
-
-
 
 volumes:
   ollama_data:

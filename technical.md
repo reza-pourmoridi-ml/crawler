@@ -8,14 +8,12 @@ tody output: get confident about local llm
 
 todo(R&D):
 step 2:
-    test if it can extract appropriate selectors with more than 99 % confidence
-    go for bigger models if needed
-    test selectors manual
-    write a python script for using selectors
-    test llm for all websites
-    create an script that using llm(prompted) return selectors
-    create an script using two befor to turn raw data to final results
-    test and debug for all websites
+    create a semantical but minimal data structure
+    update the get_page_data
+    design multy stage architect for checking data with minimal llm
+    test and debug design using various local models
+    if not possible call afshar for getting api key
+
 
 go for architect and normalize the codes.
 
