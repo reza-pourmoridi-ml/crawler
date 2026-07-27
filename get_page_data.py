@@ -355,25 +355,15 @@ async def extract_pruned_html(page) -> str:
     return await page.evaluate(
         """
         () => {
-            const root = (document.querySelector("main") || document.body).cloneNode(true);
+            const root = document.documentElement.cloneNode(true);
 
             const removableSelectors = [
                 "script",
                 "style",
                 "noscript",
                 "template",
-                "svg",
-                "path",
                 "meta",
-                "link",
-                "iframe",
-                "canvas",
-                "header",
-                "footer",
-                "nav",
-                "aside",
-                "[aria-hidden='true']",
-                "[hidden]"
+                "link"
             ];
 
             for (const selector of removableSelectors) {
@@ -382,31 +372,7 @@ async def extract_pruned_html(page) -> str:
                 }
             }
 
-            const allNodes = Array.from(root.querySelectorAll("*"));
-            for (const node of allNodes) {
-                const style = window.getComputedStyle(node);
-                const isHidden =
-                    style.display === "none" ||
-                    style.visibility === "hidden" ||
-                    style.visibility === "collapse" ||
-                    Number(style.opacity) === 0;
-
-                if (isHidden) {
-                    node.remove();
-                    continue;
-                }
-
-                for (const attr of Array.from(node.attributes)) {
-                    if (
-                        attr.name.startsWith("on") ||
-                        attr.name === "style"
-                    ) {
-                        node.removeAttribute(attr.name);
-                    }
-                }
-            }
-
-            return root.outerHTML;
+            return "<!DOCTYPE html>\\n" + root.outerHTML;
         }
         """
     )

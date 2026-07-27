@@ -11,16 +11,16 @@ RESULTS_FILE = Path("daily_test_results.jsonl")
 STATE_FILE = Path("daily_test_state.json")
 
 URLS = [
-    "https://www.alibaba.ir/flights/THR-MHD?adult=1&child=0&infant=0&departing=1405-05-02",
-    # "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&infant=0&departing=1405-05-02&flightClass=economy",
-    "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-07-24&source=searchBox&dateType=jalali",
-    "https://www.snapptrip.ir/inter-flights/THR_city/IST_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-07-24&source=searchBox&dateType=jalali&cabinType=ECONOMY",
-    "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=mhd,1&departureDate=2026-07-24&adt=1&chd=0&inf=0&cabin=1&isDomestic=true&isAnyWhere=false",
-    "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=ist,1&departureDate=2026-07-24&adt=1&chd=0&inf=0&cabin=1&isAnyWhere=false",
-    "https://mrbilit.com/flights/THR-MHD?departureDate=1405-05-02",
-    "https://mrbilit.com/flights/IKA-ISTALL?departureDate=1405-05-02&cabinClass=/P",
-    "https://ghasedak24.com/flights/THR-MHD?departure-date=1405-05-02&adult-count=1&child-count=0&infant-count=0",
-    "https://ghasedak24.com/flights/IKA-ISTALL?departure-date=1405-05-02&adult-count=1&child-count=0&infant-count=0&cabin=Y",
+    "https://www.alibaba.ir/flights/THR-MHD?adult=1&child=0&infant=0&departing=1405-05-09",
+    # "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&infant=0&departing=1405-05-15&flightClass=economy",
+    "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-5&source=searchBox&dateType=jalali",
+    "https://www.snapptrip.ir/inter-flights/THR_city/IST_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-5&source=searchBox&dateType=jalali&cabinType=ECONOMY",
+    "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=mhd,1&departureDate=2026-08-05&adt=1&chd=0&inf=0&cabin=1&isDomestic=true&isAnyWhere=false",
+    "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=ist,1&departureDate=2026-08-05&adt=1&chd=0&inf=0&cabin=1&isAnyWhere=false",
+    "https://mrbilit.com/flights/THR-MHD?departureDate=1405-05-15",
+    "https://mrbilit.com/flights/IKA-ISTALL?departureDate=1405-05-15&cabinClass=/P",
+    "https://ghasedak24.com/flights/THR-MHD?departure-date=1405-05-15&adult-count=1&child-count=0&infant-count=0",
+    "https://ghasedak24.com/flights/IKA-ISTALL?departure-date=1405-05-15&adult-count=1&child-count=0&infant-count=0&cabin=Y",
 ]
 
 # مدت کل تست (۲۴ ساعت)
