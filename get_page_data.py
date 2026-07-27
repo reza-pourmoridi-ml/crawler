@@ -264,11 +264,7 @@ async def extract_visible_cards(page):
     return candidates
 
 
-async def extract_texts_grouped_by_dom_address(page) -> dict:
-    """
-    متن‌های مستقیم عناصر را استخراج می‌کند و براساس آدرس DOM
-    در یک ساختار JSON دسته‌بندی می‌کند.
-    """
+async def extract_visible_texts(page) -> list[dict]:
     return await page.evaluate(
         """
         () => {
@@ -276,127 +272,22 @@ async def extract_texts_grouped_by_dom_address(page) -> dict:
                 return (value || "").replace(/\\s+/g, " ").trim();
             }
 
-            function escapeCssIdentifier(value) {
+            function isVisible(element) {
+                if (!element || !element.isConnected) {
+                    return false;
+                }
+
+                const style = window.getComputedStyle(element);
                 if (
-                    window.CSS &&
-                    typeof window.CSS.escape === "function"
+                    style.display === "none" ||
+                    style.visibility === "hidden" ||
+                    style.visibility === "collapse" ||
+                    Number(style.opacity) === 0
                 ) {
-                    return CSS.escape(value);
+                    return false;
                 }
 
-                return String(value).replace(
-                    /([^a-zA-Z0-9_-])/g,
-                    "\\\\$1"
-                );
-            }
-
-            function getElementClasses(element) {
-                if (!element || !element.classList) {
-                    return [];
-                }
-
-                return Array.from(element.classList)
-                    .map((className) => className.trim())
-                    .filter(Boolean)
-                    .sort();
-            }
-
-            function getDomAddress(element) {
-                if (
-                    !element ||
-                    element.nodeType !== Node.ELEMENT_NODE
-                ) {
-                    return null;
-                }
-
-                const parts = [];
-                let current = element;
-
-                while (
-                    current &&
-                    current.nodeType === Node.ELEMENT_NODE
-                ) {
-                    const tagName = current.tagName.toLowerCase();
-
-                    if (current.id) {
-                        parts.unshift(
-                            `${tagName}#${escapeCssIdentifier(current.id)}`
-                        );
-                        break;
-                    }
-
-                    let addressPart = tagName;
-                    const parent = current.parentElement;
-
-                    if (parent) {
-                        const sameTagSiblings = Array.from(
-                            parent.children
-                        ).filter(
-                            (sibling) =>
-                                sibling.tagName === current.tagName
-                        );
-
-                        if (sameTagSiblings.length > 1) {
-                            const index =
-                                sameTagSiblings.indexOf(current) + 1;
-                            addressPart += `:nth-of-type(${index})`;
-                        }
-                    }
-
-                    parts.unshift(addressPart);
-                    current = parent;
-                }
-
-                return parts.join(" > ");
-            }
-
-            function stableHash(value) {
-                let hash1 = 0xdeadbeef ^ value.length;
-                let hash2 = 0x41c6ce57 ^ value.length;
-
-                for (let i = 0; i < value.length; i++) {
-                    const charCode = value.charCodeAt(i);
-
-                    hash1 = Math.imul(
-                        hash1 ^ charCode,
-                        2654435761
-                    );
-
-                    hash2 = Math.imul(
-                        hash2 ^ charCode,
-                        1597334677
-                    );
-                }
-
-                hash1 =
-                    Math.imul(
-                        hash1 ^ (hash1 >>> 16),
-                        2246822507
-                    ) ^
-                    Math.imul(
-                        hash2 ^ (hash2 >>> 13),
-                        3266489909
-                    );
-
-                hash2 =
-                    Math.imul(
-                        hash2 ^ (hash2 >>> 16),
-                        2246822507
-                    ) ^
-                    Math.imul(
-                        hash1 ^ (hash1 >>> 13),
-                        3266489909
-                    );
-
-                const firstPart = (hash2 >>> 0)
-                    .toString(16)
-                    .padStart(8, "0");
-
-                const secondPart = (hash1 >>> 0)
-                    .toString(16)
-                    .padStart(8, "0");
-
-                return `${firstPart}${secondPart}`;
+                return element.getClientRects().length > 0;
             }
 
             function isIgnoredElement(element) {
@@ -420,98 +311,102 @@ async def extract_texts_grouped_by_dom_address(page) -> dict:
                 return ignoredTags.has(element.tagName);
             }
 
-            function isElementVisible(element) {
-                if (!element || !element.isConnected) {
-                    return false;
-                }
+            const results = [];
+            const seen = new Set();
+            let idCounter = 1;
 
-                const style = window.getComputedStyle(element);
-
-                if (
-                    style.display === "none" ||
-                    style.visibility === "hidden" ||
-                    style.visibility === "collapse" ||
-                    Number(style.opacity) === 0
-                ) {
-                    return false;
-                }
-
-                return element.getClientRects().length > 0;
-            }
-
-            const groupedTexts = {};
             const elements = document.body
                 ? document.body.querySelectorAll("*")
                 : [];
 
             for (const element of elements) {
-                if (
-                    isIgnoredElement(element) ||
-                    !isElementVisible(element)
-                ) {
+                if (isIgnoredElement(element) || !isVisible(element)) {
                     continue;
                 }
 
-                const directTextParts = Array.from(
-                    element.childNodes
-                )
-                    .filter(
-                        (node) =>
-                            node.nodeType === Node.TEXT_NODE
-                    )
-                    .map(
-                        (node) =>
-                            normalizeText(node.textContent)
-                    )
+                const directTextParts = Array.from(element.childNodes)
+                    .filter((node) => node.nodeType === Node.TEXT_NODE)
+                    .map((node) => normalizeText(node.textContent))
                     .filter(Boolean);
 
                 if (directTextParts.length === 0) {
                     continue;
                 }
 
-                const text = normalizeText(
-                    directTextParts.join(" ")
-                );
-
-                if (!text) {
+                const text = normalizeText(directTextParts.join(" "));
+                if (!text || seen.has(text)) {
                     continue;
                 }
 
-                const domAddress = getDomAddress(element);
-
-                if (!domAddress) {
-                    continue;
-                }
-
-                const classes = getElementClasses(element);
-                const classSignature =
-                    classes.length > 0
-                        ? classes.join(".")
-                        : "__no_class__";
-
-                const uniqueIdSource = [
-                    classSignature,
-                    domAddress,
-                    text
-                ].join("|");
-
-                const uniqueId =
-                    `text_${stableHash(uniqueIdSource)}`;
-
-                if (!groupedTexts[domAddress]) {
-                    groupedTexts[domAddress] = [];
-                }
-
-                groupedTexts[domAddress].push({
-                    id: uniqueId,
-                    tag: element.tagName.toLowerCase(),
-                    classes: classes,
-                    class_signature: classSignature,
+                seen.add(text);
+                results.push({
+                    id: idCounter++,
                     text: text
                 });
             }
 
-            return groupedTexts;
+            return results;
+        }
+        """
+    )
+
+
+async def extract_pruned_html(page) -> str:
+    return await page.evaluate(
+        """
+        () => {
+            const root = (document.querySelector("main") || document.body).cloneNode(true);
+
+            const removableSelectors = [
+                "script",
+                "style",
+                "noscript",
+                "template",
+                "svg",
+                "path",
+                "meta",
+                "link",
+                "iframe",
+                "canvas",
+                "header",
+                "footer",
+                "nav",
+                "aside",
+                "[aria-hidden='true']",
+                "[hidden]"
+            ];
+
+            for (const selector of removableSelectors) {
+                for (const node of root.querySelectorAll(selector)) {
+                    node.remove();
+                }
+            }
+
+            const allNodes = Array.from(root.querySelectorAll("*"));
+            for (const node of allNodes) {
+                const style = window.getComputedStyle(node);
+                const isHidden =
+                    style.display === "none" ||
+                    style.visibility === "hidden" ||
+                    style.visibility === "collapse" ||
+                    Number(style.opacity) === 0;
+
+                if (isHidden) {
+                    node.remove();
+                    continue;
+                }
+
+                for (const attr of Array.from(node.attributes)) {
+                    if (
+                        attr.name.startsWith("on") ||
+                        attr.name === "style"
+                    ) {
+                        node.removeAttribute(attr.name);
+                    }
+                }
+            }
+
+            return root.outerHTML;
         }
         """
     )
@@ -676,10 +571,10 @@ async def extract_alibaba_data(
 
         current_url = page.url
 
-        dom_content = await page.content()
+        pruned_html = await extract_pruned_html(page)
         dom_path = OUTPUT_DIR / f"{file_prefix}.html"
         dom_path.write_text(
-            dom_content,
+            pruned_html,
             encoding="utf-8",
         )
 
@@ -689,15 +584,12 @@ async def extract_alibaba_data(
             full_page=True,
         )
 
-        grouped_texts = await extract_texts_grouped_by_dom_address(
-            page
-        )
-        texts_path = OUTPUT_DIR / f"{file_prefix}_texts.json"
+        visible_texts = await extract_visible_texts(page)
+        texts_path = OUTPUT_DIR / f"{file_prefix}_texts.txt"
         texts_path.write_text(
-            json.dumps(
-                grouped_texts,
-                ensure_ascii=False,
-                indent=2,
+            "\n".join(
+                f"[{item['id']}] {item['text']}"
+                for item in visible_texts
             ),
             encoding="utf-8",
         )

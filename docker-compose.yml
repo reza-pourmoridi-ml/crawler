@@ -24,6 +24,7 @@ services:
       - .:/app
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
+    command: ["sleep", "infinity"]
     restart: "no"
 
   save-auth:

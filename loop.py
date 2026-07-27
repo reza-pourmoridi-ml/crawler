@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ایمپورت متد اصلی از get_page_data
-from get_page_compact import extract_alibaba_data
+from get_page_data import extract_alibaba_data
 
 RESULTS_FILE = Path("daily_test_results.jsonl")
 STATE_FILE = Path("daily_test_state.json")

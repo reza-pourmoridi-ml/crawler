@@ -14,5 +14,3 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r requirements.txt
 
 COPY . .
-
-CMD ["python", "get_page_data.py"]
