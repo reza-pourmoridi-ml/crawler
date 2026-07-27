@@ -13,8 +13,8 @@ STATE_FILE = Path("daily_test_state.json")
 URLS = [
     "https://www.alibaba.ir/flights/THR-MHD?adult=1&child=0&infant=0&departing=1405-05-09",
     # "https://www.alibaba.ir/international/IKA-ISTALL?adult=1&child=0&infant=0&departing=1405-05-15&flightClass=economy",
-    "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-5&source=searchBox&dateType=jalali",
-    "https://www.snapptrip.ir/inter-flights/THR_city/IST_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-5&source=searchBox&dateType=jalali&cabinType=ECONOMY",
+    "https://www.snapptrip.ir/flights/THR_city/MHD_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-06&source=searchBox&dateType=jalali",
+    "https://www.snapptrip.ir/inter-flights/THR_city/IST_city?adultCount=1&childCount=0&infantCount=0&departureDate=2026-08-06&source=searchBox&dateType=jalali&cabinType=ECONOMY",
     "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=mhd,1&departureDate=2026-08-05&adt=1&chd=0&inf=0&cabin=1&isDomestic=true&isAnyWhere=false",
     "https://www.flytoday.ir/flight/search?departure=thr,1&arrival=ist,1&departureDate=2026-08-05&adt=1&chd=0&inf=0&cabin=1&isAnyWhere=false",
     "https://mrbilit.com/flights/THR-MHD?departureDate=1405-05-15",
@@ -27,15 +27,15 @@ URLS = [
 RUN_FOR_SECONDS = 24 * 60 * 60
 
 # تایم اوت قطعی هر اجرا (حداکثر ۴ دقیقه)
-JOB_TIMEOUT_SECONDS = 240
+JOB_TIMEOUT_SECONDS = 120
 
 # تاخیر تصادفی بین درخواست‌های موفق
 MIN_SLEEP_BETWEEN_RUNS = 20
 MAX_SLEEP_BETWEEN_RUNS = 30
 
 # تاخیر بیشتر در صورت مواجهه با بلاک/کپچا برای از بین رفتن اثر حساسیت آی‌پی
-BACKOFF_ON_FAILURE_MIN = 120
-BACKOFF_ON_FAILURE_MAX = 300
+BACKOFF_ON_FAILURE_MIN = 60
+BACKOFF_ON_FAILURE_MAX = 120
 
 
 def utc_now():

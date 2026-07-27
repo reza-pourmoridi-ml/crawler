@@ -1,5 +1,4 @@
 import asyncio
-import json
 import random
 import re
 import shutil
@@ -264,20 +263,28 @@ async def extract_visible_cards(page):
     return candidates
 
 
-async def extract_visible_texts(page) -> list[dict]:
+async def extract_visible_texts_with_ids(page) -> list[dict]:
+    """
+    فقط متن‌های قابل مشاهده‌ی صفحه را استخراج می‌کند
+    و به‌صورت یک لیست تخت با شناسه‌ی شمارشی برمی‌گرداند.
+    """
+
     return await page.evaluate(
         """
         () => {
-            function normalizeText(value) {
-                return (value || "").replace(/\\s+/g, " ").trim();
-            }
+            const normalizeText = (value) =>
+                String(value || "")
+                    .replace(/\\u200c/g, " ")
+                    .replace(/\\s+/g, " ")
+                    .trim();
 
-            function isVisible(element) {
-                if (!element || !element.isConnected) {
+            const isVisible = (element) => {
+                if (!element || !(element instanceof Element)) {
                     return false;
                 }
 
                 const style = window.getComputedStyle(element);
+
                 if (
                     style.display === "none" ||
                     style.visibility === "hidden" ||
@@ -287,40 +294,45 @@ async def extract_visible_texts(page) -> list[dict]:
                     return false;
                 }
 
-                return element.getClientRects().length > 0;
-            }
-
-            function isIgnoredElement(element) {
-                if (!element || !element.tagName) {
-                    return true;
+                if (element.hasAttribute("hidden")) {
+                    return false;
                 }
 
-                const ignoredTags = new Set([
-                    "SCRIPT",
-                    "STYLE",
-                    "NOSCRIPT",
-                    "TEMPLATE",
-                    "SVG",
-                    "PATH",
-                    "META",
-                    "LINK",
-                    "HEAD",
-                    "TITLE"
-                ]);
+                if (element.getAttribute("aria-hidden") === "true") {
+                    return false;
+                }
 
-                return ignoredTags.has(element.tagName);
-            }
+                const rect = element.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+
+            const ignoredTags = new Set([
+                "SCRIPT",
+                "STYLE",
+                "NOSCRIPT",
+                "TEMPLATE",
+                "SVG",
+                "PATH",
+                "META",
+                "LINK",
+                "HEAD",
+                "TITLE"
+            ]);
+
+            const elements = document.body
+                ? Array.from(document.body.querySelectorAll("*"))
+                : [];
 
             const results = [];
             const seen = new Set();
-            let idCounter = 1;
-
-            const elements = document.body
-                ? document.body.querySelectorAll("*")
-                : [];
+            let counter = 1;
 
             for (const element of elements) {
-                if (isIgnoredElement(element) || !isVisible(element)) {
+                if (
+                    !isVisible(element) ||
+                    !element.tagName ||
+                    ignoredTags.has(element.tagName)
+                ) {
                     continue;
                 }
 
@@ -334,14 +346,21 @@ async def extract_visible_texts(page) -> list[dict]:
                 }
 
                 const text = normalizeText(directTextParts.join(" "));
-                if (!text || seen.has(text)) {
+                if (!text) {
                     continue;
                 }
 
+                if (seen.has(text)) {
+                    continue;
+                }
                 seen.add(text);
+
+                const id = `text_${String(counter).padStart(6, "0")}`;
+                counter += 1;
+
                 results.push({
-                    id: idCounter++,
-                    text: text
+                    id,
+                    text
                 });
             }
 
@@ -350,32 +369,502 @@ async def extract_visible_texts(page) -> list[dict]:
         """
     )
 
+async def extract_clean_html(page) -> str:
+    """
+    HTML صفحه را با کمترین ریسک تمیز می‌کند:
+    - head حذف می‌شود
+    - script/style/noscript حذف می‌شوند
+    - بدنه‌ی واقعی صفحه حفظ می‌شود
+    """
 
-async def extract_pruned_html(page) -> str:
     return await page.evaluate(
         """
         () => {
-            const root = document.documentElement.cloneNode(true);
+            const clone = document.documentElement.cloneNode(true);
 
-            const removableSelectors = [
+            const removeSelectors = [
+                "head",
                 "script",
                 "style",
-                "noscript",
-                "template",
-                "meta",
-                "link"
+                "noscript"
             ];
 
-            for (const selector of removableSelectors) {
-                for (const node of root.querySelectorAll(selector)) {
-                    node.remove();
-                }
+            for (const selector of removeSelectors) {
+                clone.querySelectorAll(selector).forEach(el => el.remove());
             }
 
-            return "<!DOCTYPE html>\\n" + root.outerHTML;
+            return "<!DOCTYPE html>\\n" + clone.outerHTML;
         }
         """
     )
+
+
+async def extract_visible_semantic_text(page) -> dict:
+    """
+    فقط متن‌هایی را استخراج می‌کند که واقعاً برای کاربر قابل مشاهده‌اند.
+
+    خروجی بر اساس نقش معنایی دسته‌بندی می‌شود:
+    - headings
+    - navigation
+    - lists
+    - cards
+    - prices
+    - buttons
+    - links
+    - form_fields
+    - alerts
+    - other_text
+    """
+
+    raw_data = await page.evaluate(
+        """
+        () => {
+            const normalizeText = (value) => {
+                return String(value || "")
+                    .replace(/\\u200c/g, " ")
+                    .replace(/\\s+/g, " ")
+                    .trim();
+            };
+
+            const isVisible = (element) => {
+                if (!element || !(element instanceof Element)) {
+                    return false;
+                }
+
+                const style = window.getComputedStyle(element);
+
+                if (
+                    style.display === "none" ||
+                    style.visibility === "hidden" ||
+                    style.visibility === "collapse" ||
+                    Number(style.opacity) === 0
+                ) {
+                    return false;
+                }
+
+                if (element.hasAttribute("hidden")) {
+                    return false;
+                }
+
+                if (element.getAttribute("aria-hidden") === "true") {
+                    return false;
+                }
+
+                const rect = element.getBoundingClientRect();
+
+                return (
+                    rect.width > 0 &&
+                    rect.height > 0
+                );
+            };
+
+            const getDirectText = (element) => {
+                const parts = [];
+
+                for (const node of element.childNodes) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const text = normalizeText(node.textContent);
+
+                        if (text) {
+                            parts.push(text);
+                        }
+                    }
+                }
+
+                return normalizeText(parts.join(" "));
+            };
+
+            const getElementText = (element, maxLength = 2000) => {
+                const text = normalizeText(
+                    element.innerText ||
+                    element.textContent ||
+                    ""
+                );
+
+                return text.slice(0, maxLength);
+            };
+
+            const getAccessibleName = (element) => {
+                return normalizeText(
+                    element.getAttribute("aria-label") ||
+                    element.getAttribute("title") ||
+                    element.getAttribute("alt") ||
+                    element.innerText ||
+                    element.textContent ||
+                    ""
+                );
+            };
+
+            const getHref = (element) => {
+                if (!element.href) {
+                    return null;
+                }
+
+                try {
+                    return new URL(
+                        element.href,
+                        window.location.href
+                    ).href;
+                } catch {
+                    return element.href;
+                }
+            };
+
+            const result = {
+                title: normalizeText(document.title),
+                headings: [],
+                navigation: [],
+                lists: [],
+                cards: [],
+                prices: [],
+                buttons: [],
+                links: [],
+                form_fields: [],
+                alerts: [],
+                other_text: []
+            };
+
+            /*
+             * عنوان‌ها
+             */
+            for (const element of document.querySelectorAll(
+                "h1, h2, h3, h4, h5, h6, [role='heading']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = getElementText(element, 500);
+
+                if (!text) {
+                    continue;
+                }
+
+                let level = null;
+
+                const headingMatch = element.tagName.match(/^H([1-6])$/);
+
+                if (headingMatch) {
+                    level = Number(headingMatch[1]);
+                } else {
+                    const ariaLevel = Number(
+                        element.getAttribute("aria-level")
+                    );
+
+                    level = ariaLevel || null;
+                }
+
+                result.headings.push({
+                    level,
+                    text
+                });
+            }
+
+            /*
+             * منوها و بخش‌های ناوبری
+             */
+            for (const element of document.querySelectorAll(
+                "nav, [role='navigation']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = getElementText(element, 2000);
+
+                if (!text) {
+                    continue;
+                }
+
+                result.navigation.push({
+                    label: normalizeText(
+                        element.getAttribute("aria-label")
+                    ) || null,
+                    text
+                });
+            }
+
+            /*
+             * لیست‌های واقعی HTML و لیست‌های ARIA
+             */
+            for (const list of document.querySelectorAll(
+                "ul, ol, [role='list'], [role='listbox']"
+            )) {
+                if (!isVisible(list)) {
+                    continue;
+                }
+
+                const itemSelector =
+                    ":scope > li, " +
+                    ":scope > [role='listitem'], " +
+                    ":scope > [role='option']";
+
+                const items = [];
+
+                for (const item of list.querySelectorAll(itemSelector)) {
+                    if (!isVisible(item)) {
+                        continue;
+                    }
+
+                    const text = getElementText(item, 1500);
+
+                    if (text) {
+                        items.push(text);
+                    }
+                }
+
+                if (items.length > 0) {
+                    result.lists.push({
+                        type:
+                            list.tagName === "OL"
+                                ? "ordered"
+                                : list.getAttribute("role") || "unordered",
+                        label: normalizeText(
+                            list.getAttribute("aria-label")
+                        ) || null,
+                        items
+                    });
+                }
+            }
+
+            /*
+             * کارت‌ها و آیتم‌های تکرارشونده.
+             *
+             * این selector عمداً سایت‌محور نیست و کلاس‌هایی مثل
+             * card، result، flight، ticket و hotel را بررسی می‌کند.
+             */
+            const cardSelector = [
+                "article",
+                "[role='article']",
+                "[data-testid*='card' i]",
+                "[data-testid*='result' i]",
+                "[data-testid*='flight' i]",
+                "[class*='card' i]",
+                "[class*='result-item' i]",
+                "[class*='flight-item' i]",
+                "[class*='flight-card' i]",
+                "[class*='ticket-card' i]",
+                "[class*='hotel-card' i]"
+            ].join(",");
+
+            for (const element of document.querySelectorAll(cardSelector)) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = getElementText(element, 3000);
+
+                if (!text || text.length < 10) {
+                    continue;
+                }
+
+                result.cards.push({
+                    label: normalizeText(
+                        element.getAttribute("aria-label")
+                    ) || null,
+                    text
+                });
+            }
+
+            /*
+             * دکمه‌ها
+             */
+            for (const element of document.querySelectorAll(
+                "button, [role='button'], input[type='button'], " +
+                "input[type='submit']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = normalizeText(
+                    element.value ||
+                    getAccessibleName(element)
+                );
+
+                if (!text) {
+                    continue;
+                }
+
+                result.buttons.push({
+                    text,
+                    disabled:
+                        element.disabled === true ||
+                        element.getAttribute("aria-disabled") === "true"
+                });
+            }
+
+            /*
+             * لینک‌ها
+             */
+            for (const element of document.querySelectorAll(
+                "a[href], [role='link']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = getAccessibleName(element);
+
+                if (!text) {
+                    continue;
+                }
+
+                result.links.push({
+                    text,
+                    href: getHref(element)
+                });
+            }
+
+            /*
+             * فیلدهای فرم
+             */
+            for (const element of document.querySelectorAll(
+                "input, select, textarea, [role='textbox'], " +
+                "[role='combobox'], [role='searchbox']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const id = element.id;
+                let label = "";
+
+                if (id) {
+                    try {
+                        const labelElement = document.querySelector(
+                            `label[for="${CSS.escape(id)}"]`
+                        );
+
+                        if (labelElement) {
+                            label = getElementText(labelElement, 300);
+                        }
+                    } catch {
+                        // Ignore invalid selector errors.
+                    }
+                }
+
+                label = normalizeText(
+                    label ||
+                    element.getAttribute("aria-label") ||
+                    element.getAttribute("placeholder") ||
+                    element.name ||
+                    ""
+                );
+
+                let value = null;
+
+                if (
+                    element.tagName === "SELECT" &&
+                    element.selectedOptions &&
+                    element.selectedOptions.length > 0
+                ) {
+                    value = normalizeText(
+                        element.selectedOptions[0].textContent
+                    );
+                } else if (
+                    element.type !== "password" &&
+                    element.type !== "hidden"
+                ) {
+                    value = normalizeText(element.value || "");
+                }
+
+                if (!label && !value) {
+                    continue;
+                }
+
+                result.form_fields.push({
+                    type:
+                        element.getAttribute("role") ||
+                        element.type ||
+                        element.tagName.toLowerCase(),
+                    label: label || null,
+                    value: value || null
+                });
+            }
+
+            /*
+             * خطاها، هشدارها و وضعیت‌ها
+             */
+            for (const element of document.querySelectorAll(
+                "[role='alert'], [role='status'], " +
+                "[aria-live='assertive'], [aria-live='polite']"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                const text = getElementText(element, 1500);
+
+                if (!text) {
+                    continue;
+                }
+
+                result.alerts.push({
+                    role: element.getAttribute("role") || "live-region",
+                    text
+                });
+            }
+
+            /*
+             * متن‌های مستقیم که در دسته‌های بالا قرار نگرفته‌اند.
+             *
+             * فقط direct text گرفته می‌شود تا متن فرزندان چندین بار
+             * تکرار نشود.
+             */
+            const semanticContainer = [
+                "h1", "h2", "h3", "h4", "h5", "h6",
+                "nav",
+                "ul", "ol",
+                "article",
+                "button",
+                "a",
+                "input",
+                "select",
+                "textarea",
+                "[role='heading']",
+                "[role='navigation']",
+                "[role='list']",
+                "[role='listbox']",
+                "[role='article']",
+                "[role='button']",
+                "[role='link']",
+                "[role='alert']",
+                "[role='status']"
+            ].join(",");
+
+            for (const element of document.querySelectorAll(
+                "main p, main span, main div, " +
+                "[role='main'] p, [role='main'] span, [role='main'] div, " +
+                "body > p"
+            )) {
+                if (!isVisible(element)) {
+                    continue;
+                }
+
+                if (element.closest(semanticContainer)) {
+                    continue;
+                }
+
+                const text = getDirectText(element);
+
+                if (
+                    !text ||
+                    text.length < 2 ||
+                    text.length > 1000
+                ) {
+                    continue;
+                }
+
+                result.other_text.push(text);
+            }
+
+            return result;
+        }
+        """
+    )
+
+    return clean_semantic_data(raw_data)
 
 
 async def extract_alibaba_data(
@@ -537,10 +1026,10 @@ async def extract_alibaba_data(
 
         current_url = page.url
 
-        pruned_html = await extract_pruned_html(page)
+        clean_html = await extract_clean_html(page)
         dom_path = OUTPUT_DIR / f"{file_prefix}.html"
         dom_path.write_text(
-            pruned_html,
+            clean_html,
             encoding="utf-8",
         )
 
@@ -550,15 +1039,16 @@ async def extract_alibaba_data(
             full_page=True,
         )
 
-        visible_texts = await extract_visible_texts(page)
+        extracted_texts = await extract_visible_texts_with_ids(page)
         texts_path = OUTPUT_DIR / f"{file_prefix}_texts.txt"
         texts_path.write_text(
-            "\n".join(
-                f"[{item['id']}] {item['text']}"
-                for item in visible_texts
+            "\\n".join(
+                f"{item['id']}\\t{item['text']}"
+                for item in extracted_texts
             ),
             encoding="utf-8",
         )
+
 
         if "alibaba.ir" in target_url and has_auth_file:
             try:

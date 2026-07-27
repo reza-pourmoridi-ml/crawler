@@ -8,9 +8,8 @@ tody output: get confident about local llm
 
 todo(R&D):
 step 2:
-    create a semantical but minimal data structure
-    update the get_page_data
-    design multy stage architect for checking data with minimal llm
+    clean the version control
+    create a new branch for testing it
     test and debug design using various local models
     if not possible call afshar for getting api key
 
