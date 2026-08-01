@@ -370,33 +370,209 @@ async def extract_visible_texts_with_ids(page) -> list[dict]:
     )
 
 async def extract_clean_html(page) -> str:
-    """
-    HTML صفحه را با کمترین ریسک تمیز می‌کند:
-    - head حذف می‌شود
-    - script/style/noscript حذف می‌شوند
-    - بدنه‌ی واقعی صفحه حفظ می‌شود
-    """
-
     return await page.evaluate(
         """
         () => {
             const clone = document.documentElement.cloneNode(true);
 
-            const removeSelectors = [
-                "head",
-                "script",
-                "style",
-                "noscript"
+            const REMOVE_TAGS = new Set([
+                "svg", "symbol", "use",
+                "canvas", "video", "audio",
+                "iframe", "object", "embed",
+                "script", "style", "link",
+                "meta", "noscript"
+            ]);
+
+            const PRESERVE_TAGS = new Set([
+                "html", "head", "body",
+                "div", "section", "article", "main", "nav", "aside", "header", "footer",
+                "ul", "ol", "li",
+                "table", "thead", "tbody", "tr", "td", "th",
+                "form", "input", "button", "textarea", "select", "option", "label",
+                "a", "p", "span", "br", "pre", "code", "blockquote",
+                "strong", "em", "b", "i",
+                "h1", "h2", "h3", "h4", "h5", "h6",
+                "img"
+            ]);
+
+            const KEEP_ATTRS = new Set([
+                "id",
+                "class",
+                "name",
+                "role",
+                "href",
+                "alt",
+                "type",
+                "value",
+                "placeholder",
+                "colspan",
+                "rowspan"
+            ]);
+
+            const KEEP_ATTR_PREFIXES = [
+                "data-",
+                "aria-"
             ];
 
-            for (const selector of removeSelectors) {
-                clone.querySelectorAll(selector).forEach(el => el.remove());
+            const VOID_TAGS = new Set([
+                "input", "img", "br", "hr"
+            ]);
+
+            const WHITESPACE_SENSITIVE_TAGS = new Set([
+                "pre", "code", "textarea"
+            ]);
+
+            // -----------------------------
+            // 1) remove comments
+            // -----------------------------
+            {
+                const walker = document.createTreeWalker(
+                    clone,
+                    NodeFilter.SHOW_COMMENT
+                );
+
+                const comments = [];
+                while (walker.nextNode()) {
+                    comments.push(walker.currentNode);
+                }
+
+                for (const c of comments) {
+                    c.remove();
+                }
+            }
+
+            // -----------------------------
+            // 2) remove heavy tags + clean attrs + unwrap unknowns
+            // -----------------------------
+            const elements = Array.from(clone.querySelectorAll("*")).reverse();
+
+            for (const el of elements) {
+                const tag = el.tagName.toLowerCase();
+
+                if (REMOVE_TAGS.has(tag)) {
+                    el.remove();
+                    continue;
+                }
+
+                for (const attr of Array.from(el.attributes)) {
+                    const keep =
+                        KEEP_ATTRS.has(attr.name) ||
+                        KEEP_ATTR_PREFIXES.some(p => attr.name.startsWith(p));
+
+                    if (!keep) {
+                        el.removeAttribute(attr.name);
+                    }
+                }
+
+                if (tag === "html" || tag === "head" || tag === "body") {
+                    continue;
+                }
+
+                if (!PRESERVE_TAGS.has(tag)) {
+                    const hasImportantAttrs =
+                        el.id ||
+                        el.classList.length > 0 ||
+                        Array.from(el.attributes).some(
+                            a =>
+                                a.name.startsWith("data-") ||
+                                a.name.startsWith("aria-")
+                        );
+
+                    if (!hasImportantAttrs) {
+                        const parent = el.parentNode;
+                        if (parent) {
+                            while (el.firstChild) {
+                                parent.insertBefore(el.firstChild, el);
+                            }
+                            parent.removeChild(el);
+                        }
+                    }
+                }
+            }
+
+            // -----------------------------
+            // 3) remove whitespace-only text nodes
+            //    and normalize normal text nodes
+            // -----------------------------
+            {
+                const textWalker = document.createTreeWalker(
+                    clone,
+                    NodeFilter.SHOW_TEXT
+                );
+
+                const textNodes = [];
+                while (textWalker.nextNode()) {
+                    textNodes.push(textWalker.currentNode);
+                }
+
+                for (const node of textNodes) {
+                    const parent = node.parentElement;
+                    if (!parent) continue;
+
+                    const parentTag = parent.tagName
+                        ? parent.tagName.toLowerCase()
+                        : "";
+
+                    // preserve whitespace exactly in sensitive tags
+                    if (WHITESPACE_SENSITIVE_TAGS.has(parentTag)) {
+                        continue;
+                    }
+
+                    // remove text nodes that are only whitespace/newlines/tabs
+                    if (!node.nodeValue.trim()) {
+                        node.remove();
+                        continue;
+                    }
+
+                    // normalize internal whitespace
+                    // converts multiple spaces/newlines/tabs to single space
+                    node.nodeValue = node.nodeValue.replace(/\\s+/g, " ");
+                }
+            }
+
+            // -----------------------------
+            // 4) remove empty useless elements
+            //    after text cleanup
+            // -----------------------------
+            {
+                const all = Array.from(clone.querySelectorAll("*")).reverse();
+
+                for (const el of all) {
+                    const tag = el.tagName.toLowerCase();
+
+                    if (tag === "html" || tag === "head" || tag === "body") {
+                        continue;
+                    }
+
+                    if (VOID_TAGS.has(tag)) {
+                        continue;
+                    }
+
+                    const hasElementChildren = el.children.length > 0;
+                    const text = el.textContent ? el.textContent.trim() : "";
+
+                    const hasImportantAttrs =
+                        el.id ||
+                        el.classList.length > 0 ||
+                        Array.from(el.attributes).some(
+                            a =>
+                                a.name.startsWith("data-") ||
+                                a.name.startsWith("aria-") ||
+                                KEEP_ATTRS.has(a.name)
+                        );
+
+                    // remove truly empty junk nodes
+                    if (!hasElementChildren && !text && !hasImportantAttrs) {
+                        el.remove();
+                    }
+                }
             }
 
             return "<!DOCTYPE html>\\n" + clone.outerHTML;
         }
         """
     )
+
 
 
 async def extract_visible_semantic_text(page) -> dict:
