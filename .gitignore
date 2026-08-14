@@ -1,0 +1,59 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Runtime storage
+storage/*
+!storage/README.md
+!storage/raw/
+!storage/raw/.gitkeep
+!storage/learned/
+!storage/learned/.gitkeep
+!storage/extracted/
+!storage/extracted/.gitkeep
+!storage/temp/
+!storage/temp/.gitkeep
+
+# R&D data and generated evaluation results
+alibaba_raw_data/
+daily_test_results.jsonl
+daily_test_state.json
+llm_eval_results.json
+scoring_eval_results.json
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Operating-system files
+.DS_Store
+Thumbs.db
