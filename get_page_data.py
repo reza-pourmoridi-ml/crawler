@@ -373,202 +373,81 @@ async def extract_clean_html(page) -> str:
     return await page.evaluate(
         """
         () => {
+            /*
+             * Conservative semantic cleanup:
+             *
+             * - فقط عناصر موجود در REMOVE_ELEMENTS حذف می‌شوند.
+             * - هیچ تگ دیگری حذف، unwrap یا جابه‌جا نمی‌شود.
+             * - هیچ attributeای حذف نمی‌شود.
+             * - هیچ عنصر خالی حذف نمی‌شود.
+             * - commentها حفظ می‌شوند.
+             * - متن و whitespace بدون تغییر حفظ می‌شوند.
+             */
+
+            const REMOVE_ELEMENTS = new Set([
+                // CSS و JavaScript
+                "style",
+                "script",
+                "link",
+
+                // Metadata مربوط به head
+                "head",
+                "meta",
+                "base",
+
+                // گرافیک غیرمتنی
+                "svg",
+                "canvas",
+
+                // محتوای رسانه‌ای غیرمتنی
+                "video",
+                "audio",
+
+                // محتوای خارجی یا embed شده
+                "iframe",
+                "object",
+                "embed"
+            ]);
+
             const clone = document.documentElement.cloneNode(true);
 
-            const REMOVE_TAGS = new Set([
-                "svg", "symbol", "use",
-                "canvas", "video", "audio",
-                "iframe", "object", "embed",
-                "script", "style", "link",
-                "meta", "noscript"
-            ]);
+            /*
+             * حذف فقط تگ‌های صریحاً تعیین‌شده.
+             *
+             * querySelectorAll روی clone انجام می‌شود تا هیچ بخشی
+             * از document اصلی تغییر نکند.
+             */
+            for (const tagName of REMOVE_ELEMENTS) {
+                const elements = clone.querySelectorAll(tagName);
 
-            const PRESERVE_TAGS = new Set([
-                "html", "head", "body",
-                "div", "section", "article", "main", "nav", "aside", "header", "footer",
-                "ul", "ol", "li",
-                "table", "thead", "tbody", "tr", "td", "th",
-                "form", "input", "button", "textarea", "select", "option", "label",
-                "a", "p", "span", "br", "pre", "code", "blockquote",
-                "strong", "em", "b", "i",
-                "h1", "h2", "h3", "h4", "h5", "h6",
-                "img"
-            ]);
-
-            const KEEP_ATTRS = new Set([
-                "id",
-                "class",
-                "name",
-                "role",
-                "href",
-                "alt",
-                "type",
-                "value",
-                "placeholder",
-                "colspan",
-                "rowspan"
-            ]);
-
-            const KEEP_ATTR_PREFIXES = [
-                "data-",
-                "aria-"
-            ];
-
-            const VOID_TAGS = new Set([
-                "input", "img", "br", "hr"
-            ]);
-
-            const WHITESPACE_SENSITIVE_TAGS = new Set([
-                "pre", "code", "textarea"
-            ]);
-
-            // -----------------------------
-            // 1) remove comments
-            // -----------------------------
-            {
-                const walker = document.createTreeWalker(
-                    clone,
-                    NodeFilter.SHOW_COMMENT
-                );
-
-                const comments = [];
-                while (walker.nextNode()) {
-                    comments.push(walker.currentNode);
-                }
-
-                for (const c of comments) {
-                    c.remove();
+                for (const element of elements) {
+                    element.remove();
                 }
             }
 
-            // -----------------------------
-            // 2) remove heavy tags + clean attrs + unwrap unknowns
-            // -----------------------------
-            const elements = Array.from(clone.querySelectorAll("*")).reverse();
+            /*
+             * عمداً انجام نمی‌دهیم:
+             *
+             * - حذف head
+             * - حذف noscript یا template
+             * - حذف comment
+             * - حذف attributeها
+             * - حذف class/id/role/aria/data
+             * - حذف style attribute
+             * - حذف whitespace
+             * - حذف عناصر خالی
+             * - unwrap کردن تگ‌های ناشناخته
+             * - محدود کردن تگ‌ها به allowlist
+             *
+             * چون هرکدام ممکن است برای تشخیص ساختار، layout، لوگو،
+             * CTA، route، قیمت یا duplicateهای responsive به LLM کمک کنند.
+             */
 
-            for (const el of elements) {
-                const tag = el.tagName.toLowerCase();
+            const doctype = document.doctype
+                ? "<!DOCTYPE " + document.doctype.name + ">\\\\n"
+                : "";
 
-                if (REMOVE_TAGS.has(tag)) {
-                    el.remove();
-                    continue;
-                }
-
-                for (const attr of Array.from(el.attributes)) {
-                    const keep =
-                        KEEP_ATTRS.has(attr.name) ||
-                        KEEP_ATTR_PREFIXES.some(p => attr.name.startsWith(p));
-
-                    if (!keep) {
-                        el.removeAttribute(attr.name);
-                    }
-                }
-
-                if (tag === "html" || tag === "head" || tag === "body") {
-                    continue;
-                }
-
-                if (!PRESERVE_TAGS.has(tag)) {
-                    const hasImportantAttrs =
-                        el.id ||
-                        el.classList.length > 0 ||
-                        Array.from(el.attributes).some(
-                            a =>
-                                a.name.startsWith("data-") ||
-                                a.name.startsWith("aria-")
-                        );
-
-                    if (!hasImportantAttrs) {
-                        const parent = el.parentNode;
-                        if (parent) {
-                            while (el.firstChild) {
-                                parent.insertBefore(el.firstChild, el);
-                            }
-                            parent.removeChild(el);
-                        }
-                    }
-                }
-            }
-
-            // -----------------------------
-            // 3) remove whitespace-only text nodes
-            //    and normalize normal text nodes
-            // -----------------------------
-            {
-                const textWalker = document.createTreeWalker(
-                    clone,
-                    NodeFilter.SHOW_TEXT
-                );
-
-                const textNodes = [];
-                while (textWalker.nextNode()) {
-                    textNodes.push(textWalker.currentNode);
-                }
-
-                for (const node of textNodes) {
-                    const parent = node.parentElement;
-                    if (!parent) continue;
-
-                    const parentTag = parent.tagName
-                        ? parent.tagName.toLowerCase()
-                        : "";
-
-                    // preserve whitespace exactly in sensitive tags
-                    if (WHITESPACE_SENSITIVE_TAGS.has(parentTag)) {
-                        continue;
-                    }
-
-                    // remove text nodes that are only whitespace/newlines/tabs
-                    if (!node.nodeValue.trim()) {
-                        node.remove();
-                        continue;
-                    }
-
-                    // normalize internal whitespace
-                    // converts multiple spaces/newlines/tabs to single space
-                    node.nodeValue = node.nodeValue.replace(/\\s+/g, " ");
-                }
-            }
-
-            // -----------------------------
-            // 4) remove empty useless elements
-            //    after text cleanup
-            // -----------------------------
-            {
-                const all = Array.from(clone.querySelectorAll("*")).reverse();
-
-                for (const el of all) {
-                    const tag = el.tagName.toLowerCase();
-
-                    if (tag === "html" || tag === "head" || tag === "body") {
-                        continue;
-                    }
-
-                    if (VOID_TAGS.has(tag)) {
-                        continue;
-                    }
-
-                    const hasElementChildren = el.children.length > 0;
-                    const text = el.textContent ? el.textContent.trim() : "";
-
-                    const hasImportantAttrs =
-                        el.id ||
-                        el.classList.length > 0 ||
-                        Array.from(el.attributes).some(
-                            a =>
-                                a.name.startsWith("data-") ||
-                                a.name.startsWith("aria-") ||
-                                KEEP_ATTRS.has(a.name)
-                        );
-
-                    // remove truly empty junk nodes
-                    if (!hasElementChildren && !text && !hasImportantAttrs) {
-                        el.remove();
-                    }
-                }
-            }
-
-            return "<!DOCTYPE html>\\n" + clone.outerHTML;
+            return doctype + clone.outerHTML;
         }
         """
     )
@@ -1153,26 +1032,6 @@ async def extract_alibaba_data(
 
         await wait_for_page_stability(page)
         await asyncio.sleep(HARD_PAUSE_LOAD_TIME)
-
-        if "alibaba.ir" in target_url:
-            login_req = (
-                await page.query_selector("input[type='tel']")
-                or await page.query_selector("text='ورود یا ثبت‌نام'")
-            )
-            if login_req:
-                screenshot_path = (
-                    OUTPUT_DIR / f"{file_prefix}_auth_required.png"
-                )
-                await page.screenshot(
-                    path=str(screenshot_path),
-                    full_page=True,
-                )
-                await browser.close()
-                return {
-                    "status": "auth_required",
-                    "screenshot": str(screenshot_path),
-                }
-
         captcha_status = await wait_for_manual_resolution_if_needed(
             page,
             headless_mode,
