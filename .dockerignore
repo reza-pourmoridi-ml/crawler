@@ -10,5 +10,5 @@ __pycache__
 .vscode
 alibaba_raw_data
 auth
-commands.txt
-technical.md
+docs/commands.txt
+docs/technical.md

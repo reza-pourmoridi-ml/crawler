@@ -5,7 +5,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 
-AUTH_DIR = Path("auth")
+AUTH_DIR = Path("")
 AUTH_DIR.mkdir(parents=True, exist_ok=True)
 
 AUTH_STATE_FILE = AUTH_DIR / "auth.json"
