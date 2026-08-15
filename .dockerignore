@@ -9,6 +9,6 @@ __pycache__
 .idea
 .vscode
 alibaba_raw_data
-auth
+app/auth
 docs/commands.txt
 docs/technical.md
