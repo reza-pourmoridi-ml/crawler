@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Crawler Control{% endblock %}
+
+{% block content %}
+<section>
+    <h2>{{ message }}</h2>
+    <p>Crawler Status: <mark>{{ status }}</mark></p>
+</section>
+
+<section>
+    <h3>Active Tasks</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Task ID</th>
+                <th>Target Domain</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td><code>{{ task.id }}</code></td>
+                <td>{{ task.domain }}</td>
+                <td>{{ task.state }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">No active tasks found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

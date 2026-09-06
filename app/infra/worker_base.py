@@ -20,10 +20,13 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
     timeouts: {"extraction.crawl_alibaba": 3600, ...}   -> ثانیه، برای جاب سنگین بالا بگیر
     """
     stop = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: stop.set())
-    signal.signal(signal.SIGINT, lambda *_: stop.set())
 
-    last_sweep = threading.Event()  # فقط برای شمارش زمان استفاده می‌کنیم، جایگزین با time.time() هم می‌شه
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
+        signal.signal(signal.SIGINT, lambda *_: stop.set())
+    else:
+        logger.debug("run_worker is not in main thread; skipping SIGTERM/SIGINT handlers (expected in tests)")
+
     import time
     last_sweep_ts = time.time()
 
