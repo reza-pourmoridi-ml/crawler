@@ -3,7 +3,9 @@
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 from app.infra.config import settings
 
@@ -13,6 +15,11 @@ def storage_root() -> Path:
     if not root.is_absolute():
         root = Path(__file__).resolve().parents[2] / root
     return root
+
+
+def temporary_root() -> Path:
+    worker_directory = os.environ.get("CRAWLER_JOB_TEMP")
+    return Path(worker_directory) if worker_directory else storage_root() / "temp"
 
 
 def website_directory(website_id: int, route_type: str) -> Path:
@@ -39,13 +46,51 @@ def extracted_path(payload: dict) -> Path:
             / f"scrape_{int(payload['source_job_id'])}.json")
 
 
-def read_tickets(path: Path) -> list[str]:
-    tickets = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(tickets, list) or not tickets or any(
-        not isinstance(item, str) or not item.strip() for item in tickets
-    ):
+class LearnedTemplate(TypedDict):
+    html: str
+    learned_at: str
+    source_snapshot_id: str | None
+
+
+def template_timestamp(template: LearnedTemplate) -> datetime:
+    timestamp = datetime.fromisoformat(template["learned_at"])
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc)
+
+
+def read_templates(path: Path) -> list[LearnedTemplate]:
+    with path.open(encoding="utf-8") as file:
+        tickets = json.load(file)
+        modified_at = datetime.fromtimestamp(os.fstat(file.fileno()).st_mtime, timezone.utc).isoformat()
+    if not isinstance(tickets, list) or not tickets:
         raise ValueError(f"Invalid or empty learned tickets: {path}")
-    return tickets
+
+    templates = []
+    for item in tickets:
+        if isinstance(item, str):
+            item = {"html": item, "learned_at": modified_at, "source_snapshot_id": None}
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("html"), str)
+            or not item["html"].strip()
+            or not isinstance(item.get("learned_at"), str)
+            or "source_snapshot_id" not in item
+            or (item["source_snapshot_id"] is not None and (
+                not isinstance(item["source_snapshot_id"], str) or not item["source_snapshot_id"].strip()
+            ))
+        ):
+            raise ValueError(f"Invalid learned template: {path}")
+        templates.append({
+            "html": item["html"],
+            "learned_at": template_timestamp(item).isoformat(),
+            "source_snapshot_id": item["source_snapshot_id"],
+        })
+    return templates
+
+
+def read_tickets(path: Path) -> list[str]:
+    return [template["html"] for template in read_templates(path)]
 
 
 def usable_learning(website_id: int, route_type: str) -> bool:
@@ -60,7 +105,8 @@ def write_json_atomic(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as file:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
+                                         prefix=".atomic-", suffix=".tmp", delete=False) as file:
             temporary = Path(file.name)
             json.dump(data, file, ensure_ascii=False, indent=2)
             file.flush()

@@ -11,18 +11,23 @@ from app.control.flight_paths.models import FlightPath  # noqa: F401
 
 from app.infra.db import SessionLocal
 from app.orchestration.jobs import advance_pipeline, create_scrape_jobs
-
+from app.orchestration.maintenance import maintain_pipeline
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 POLL_INTERVAL_SECONDS = 5 * 60
 
 def get_search_requests() -> list[dict]:
-    """
-    Search Requestهای ثبت‌شده توسط Search Box را می‌خواند.
-    """
+    today = datetime.now(
+        ZoneInfo("Asia/Tehran")
+    ).date()
 
     statement = (
         select(SearchRequest)
+        .where(
+            SearchRequest.departure_date >= today
+        )
         .options(
             joinedload(
                 SearchRequest.origin_airport
@@ -46,29 +51,20 @@ def get_search_requests() -> list[dict]:
             {
                 "id": item.id,
                 "route_type": item.route_type,
-
                 "origin_airport": {
                     "id": item.origin_airport.id,
                     "name_fa": item.origin_airport.name_fa,
                 },
-
                 "destination_airport": {
                     "id": item.destination_airport.id,
                     "name_fa": item.destination_airport.name_fa,
                 },
-
-                "departure_date":
-                    item.departure_date.isoformat(),
-
-                "departure_date_jalali":
-                    item.departure_date_jalali,
-
-                "created_at":
-                    item.created_at.isoformat(),
+                "departure_date": item.departure_date.isoformat(),
+                "departure_date_jalali": item.departure_date_jalali,
+                "created_at": item.created_at.isoformat(),
             }
             for item in requests
         ]
-
 
 def check_search_requests() -> list[dict]:
     requests = get_search_requests()
@@ -120,6 +116,11 @@ def run() -> None:
     )
 
     while not stop_event.is_set():
+
+        try:
+            maintain_pipeline()
+        except Exception:
+            logging.exception("[orchestrator] Maintenance failed; will retry next poll")
 
         try:
             check_search_requests()

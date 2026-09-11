@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.control.search_box.models import SearchRequest
 from app.infra.db import SessionLocal
+from app.infra.config import settings
 from app.infra.worker_base import run_worker
 from app.infra.storage import snapshot_directory
 from app.scraper.service import scrape_url
@@ -14,7 +15,7 @@ from app.scraper.url_builder import build_scrape_url
 logger = logging.getLogger(__name__)
 
 JOB_TYPE = "scrape"
-JOB_TIMEOUT = 240
+JOB_TIMEOUT = settings.scrape_job_timeout
 OUTPUT_ROOT = Path("scraper_raw_data")
 
 
@@ -99,6 +100,7 @@ def main() -> None:
         job_types=list(HANDLERS),
         handlers=HANDLERS,
         timeouts=TIMEOUTS,
+        isolate_handlers=True,
     )
 
 

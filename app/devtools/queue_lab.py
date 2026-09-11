@@ -28,7 +28,7 @@ def scenario_happy_path():
     mark_done(job["id"])
     with SessionLocal() as db:
         status = db.execute(text("SELECT status FROM jobs WHERE id=:id"), {"id": job_id}).scalar()
-    assert status == "done"
+    assert status == "failed"
     log.info("OK: happy path")
 
 

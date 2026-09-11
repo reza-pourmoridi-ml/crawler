@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from sqlalchemy import create_engine
@@ -108,68 +108,115 @@ class PipelineTests(unittest.TestCase):
 
     def test_first_sample_learns_before_extracting(self):
         scrape = self.scrape()
-        planned = plan_followups([scrape], self.now)
+        planned = plan_followups([scrape])
         self.assertEqual([kind for kind, _ in planned], ['learn'])
         self.assertEqual(planned[0][1]['source_job_id'], scrape['id'])
 
     def test_one_learn_per_site_and_route_uses_latest_sample(self):
         jobs = [self.scrape(1), self.scrape(2), self.scrape(3, route_type='international'), self.scrape(4, website_id=2)]
-        planned = plan_followups(jobs, self.now)
+        planned = plan_followups(jobs)
         self.assertEqual([kind for kind, _ in planned], ['learn'] * 3)
         self.assertEqual({p['source_job_id'] for _, p in planned}, {2, 3, 4})
 
     def test_pending_running_learning_blocks_duplicates(self):
         scrape = self.scrape()
         for status in ['pending', 'running']:
-            self.assertEqual(plan_followups([scrape, self.child(scrape, status=status)], self.now), [])
+            self.assertEqual(plan_followups([scrape, self.child(scrape, status=status)]), [])
 
     def test_existing_learning_extracts_each_snapshot_without_relearning(self):
         self.learned()
-        planned = plan_followups([self.scrape(1), self.scrape(2)], self.now)
+        scrapes = [self.scrape(1), self.scrape(2)]
+        planned = plan_followups([*scrapes, self.child(scrapes[-1], status='done')])
         self.assertEqual([kind for kind, _ in planned], ['extractor', 'extractor'])
 
     def test_expired_learning_refreshes_once_and_remains_usable(self):
-        self.learned(age=settings.learn_interval_seconds + 1)
-        planned = plan_followups([self.scrape(1), self.scrape(2)], self.now)
+        self.learned(age=8 * 24 * 60 * 60)
+        planned = plan_followups([self.scrape(1), self.scrape(2)])
         self.assertEqual([kind for kind, _ in planned], ['learn', 'extractor', 'extractor'])
 
     def test_refresh_in_progress_does_not_block_extraction(self):
         scrape = self.scrape()
-        self.learned(age=settings.learn_interval_seconds + 1)
-        planned = plan_followups([scrape, self.child(scrape)], self.now)
+        self.learned(age=8 * 24 * 60 * 60)
+        planned = plan_followups([scrape, self.child(scrape)])
         self.assertEqual([kind for kind, _ in planned], ['extractor'])
 
     def test_restart_never_recreates_existing_extraction_even_after_failure(self):
         scrape = self.scrape()
         self.learned()
         for status in ['pending', 'running', 'done', 'failed']:
-            self.assertEqual(plan_followups([scrape, self.child(scrape, 'extractor', status)], self.now), [])
+            self.assertEqual(plan_followups([scrape, self.child(scrape, 'extractor', status), self.child(scrape, status='done')]), [])
 
-    def test_failed_learning_cooldown_and_retry(self):
+    def test_failed_learning_requires_new_snapshot(self):
         scrape = self.scrape()
         failed = self.child(scrape, status='failed')
-        self.assertEqual(plan_followups([scrape, failed], self.now), [])
-        planned = plan_followups([scrape, failed], self.now + timedelta(seconds=settings.learn_retry_seconds + 1))
+        self.assertEqual(plan_followups([scrape, failed]), [])
+        planned = plan_followups([scrape, failed, self.scrape(2)])
         self.assertEqual([kind for kind, _ in planned], ['learn'])
+        self.assertEqual(planned[0][1]['source_job_id'], 2)
+
+    def test_newest_snapshot_waits_for_active_learn_then_runs_immediately(self):
+        original = self.scrape(1)
+        newer = self.scrape(2)
+        newest = self.scrape(3)
+        self.learned()
+        for status in ['pending', 'running']:
+            planned = plan_followups([original, newer, newest, self.child(original, status=status)])
+            self.assertEqual([kind for kind, _ in planned], ['extractor'] * 3)
+        planned = plan_followups([original, newer, newest, self.child(original, status='done')])
+        self.assertEqual([kind for kind, _ in planned], ['learn', 'extractor', 'extractor', 'extractor'])
+        self.assertEqual(planned[0][1]['source_job_id'], 3)
+
+    def test_old_template_without_new_scrape_does_not_trigger_learn(self):
+        scrape = self.scrape()
+        self.learned(age=30 * 24 * 60 * 60)
+        planned = plan_followups([scrape, self.child(scrape, status='done')])
+        self.assertEqual([kind for kind, _ in planned], ['extractor'])
+
+    def test_last_source_uses_maximum_scrape_id_not_job_order(self):
+        older = self.scrape(1)
+        newer = self.scrape(2)
+        latest_learn = self.child(newer, status='done')
+        older_learn = self.child(older, status='failed')
+        self.assertEqual(plan_followups([newer, latest_learn, older, older_learn]), [])
+
+    def test_newer_unsuccessful_scrape_does_not_trigger_learn(self):
+        original = self.scrape(1)
+        for status in ['pending', 'running', 'failed']:
+            planned = plan_followups([original, self.child(original, status='done'), self.scrape(2, status=status)])
+            self.assertEqual(planned, [])
+
+    def test_active_learning_is_independent_for_each_website_and_route(self):
+        domestic = self.scrape(1)
+        international = self.scrape(2, route_type='international')
+        other_website = self.scrape(3, website_id=2)
+        planned = plan_followups([domestic, international, other_website, self.child(domestic)])
+        self.assertEqual([kind for kind, _ in planned], ['learn', 'learn'])
+        self.assertEqual({payload['source_job_id'] for _, payload in planned}, {2, 3})
+
+    def test_next_poll_does_not_duplicate_newly_planned_learn(self):
+        scrape = self.scrape()
+        planned = plan_followups([scrape])
+        pending = {'type': planned[0][0], 'payload': planned[0][1], 'status': 'pending'}
+        self.assertEqual(plan_followups([scrape, pending]), [])
 
     def test_missing_raw_or_unfinished_scrape_is_not_dispatched(self):
         scrape = self.scrape(status='running')
-        self.assertEqual(plan_followups([scrape], self.now), [])
+        self.assertEqual(plan_followups([scrape]), [])
         scrape['status'] = 'done'
         (snapshot_directory(scrape['payload']) / 'page.html').unlink()
-        self.assertEqual(plan_followups([scrape], self.now), [])
+        self.assertEqual(plan_followups([scrape]), [])
 
     def test_corrupt_template_relearns_without_dispatching_extraction(self):
         path = self.learned()
         path.write_text('{invalid')
-        self.assertEqual([kind for kind, _ in plan_followups([self.scrape()], self.now)], ['learn'])
+        self.assertEqual([kind for kind, _ in plan_followups([self.scrape()])], ['learn'])
 
     def test_learning_then_real_matching_and_parsing(self):
         from app.learn.service import learn_website
         scrape = self.scrape()
         html_path = snapshot_directory(scrape['payload']) / 'page.html'
         with patch('app.learn.validation.final_validation', side_effect=lambda chunk: (chunk.startswith('<article'), .99)) as classifier:
-            path = learn_website(html_path, 1, 'domestic')
+            path = learn_website(html_path, 1, 'domestic', scrape['payload']['snapshot_id'])
         classifier.assert_called()
         self.assertEqual(read_tickets(path), [CARD])
         tickets = extract_tickets(html_path, path, {'ماهان': ['Mahan Air']})
@@ -177,7 +224,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(tickets[0]['price'], 2500000)
         self.assertEqual(tickets[0]['time'], '12:30')
         self.assertEqual(tickets[0]['airline'], 'ماهان')
-        self.assertEqual([kind for kind, _ in plan_followups([scrape], self.now)], ['extractor'])
+        self.assertEqual([kind for kind, _ in plan_followups([scrape, self.child(scrape, status='done')])], ['extractor'])
 
     def test_empty_learn_does_not_overwrite_previous_template(self):
         from app.learn.service import learn_website
@@ -186,7 +233,7 @@ class PipelineTests(unittest.TestCase):
         scrape = self.scrape()
         with patch('app.learn.validation.final_validation', return_value=(False, 0)):
             with self.assertRaises(ValueError):
-                learn_website(snapshot_directory(scrape['payload']) / 'page.html', 1, 'domestic')
+                learn_website(snapshot_directory(scrape['payload']) / 'page.html', 1, 'domestic', scrape['payload']['snapshot_id'])
         self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), original)
 
     def test_extractor_reads_database_aliases_each_job_and_writes_file(self):

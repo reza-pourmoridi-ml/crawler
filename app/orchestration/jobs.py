@@ -1,16 +1,15 @@
 """Central scheduling: workers execute jobs; only the orchestrator dispatches stages."""
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import uuid4
 
 from sqlalchemy import select
 
 from app.control.websites.models import Website
-from app.infra.config import settings
 from app.infra.db import SessionLocal
 from app.infra.queue import enqueue
-from app.infra.storage import learned_path, snapshot_directory, usable_learning
+from app.infra.storage import snapshot_directory, usable_learning
 from app.orchestration.models import Job
 from app.scraper.url_builder import ScrapeUrlBuildError, build_scrape_url
 
@@ -24,7 +23,7 @@ EXTRACTOR = "extractor"
 def get_pipeline_jobs() -> list[dict]:
     with SessionLocal() as db:
         rows = db.execute(
-            select(Job.id, Job.type, Job.status, Job.payload, Job.run_at)
+            select(Job.id, Job.type, Job.status, Job.payload, Job.run_at, Job.outcome)
             .where(Job.type.in_([SCRAPE, LEARN, EXTRACTOR]))
             .order_by(Job.id)
         )
@@ -67,11 +66,13 @@ def create_scrape_jobs(requests: list[dict]) -> None:
                 logger.info("Created scrape job=%s request=%s website=%s", job_id, *key)
 
 
-def plan_followups(jobs: list[dict], now: datetime) -> list[tuple[str, dict]]:
+def plan_followups(jobs: list[dict]) -> list[tuple[str, dict]]:
     """Plan from persistent queue state and published files, including after restart."""
     completed = [
         job for job in jobs
-        if job["type"] == SCRAPE and job["status"] == "done"
+        if job["type"] == SCRAPE and (
+            job["status"] == "done" or (job["status"] == "failed" and job.get("outcome") == "success")
+        )
         and job["payload"].get("snapshot_id")
     ]
     latest_samples = {}
@@ -82,7 +83,7 @@ def plan_followups(jobs: list[dict], now: datetime) -> list[tuple[str, dict]]:
             latest_samples[key] = job
 
     active_learning = set()
-    failed_learning = {}
+    last_learned_sources = {}
     extracted_sources = set()
     for job in jobs:
         payload = job["payload"]
@@ -91,23 +92,17 @@ def plan_followups(jobs: list[dict], now: datetime) -> list[tuple[str, dict]]:
             extracted_sources.add(payload.get("source_job_id"))
         elif job["type"] == LEARN:
             key = (payload["website_id"], payload["route_type"])
+            source_job_id = int(payload["source_job_id"])
+            last_learned_sources[key] = max(last_learned_sources.get(key, 0), source_job_id)
             if job["status"] in ACTIVE_STATUSES:
                 active_learning.add(key)
-            elif job["status"] == "failed":
-                run_at = job["run_at"]
-                if run_at.tzinfo is None:
-                    run_at = run_at.replace(tzinfo=timezone.utc)
-                failed_learning[key] = max(failed_learning.get(key, run_at), run_at)
 
     planned = []
     learned = {key: usable_learning(*key) for key in latest_samples}
     for key, job in latest_samples.items():
         if key in active_learning:
             continue
-        if key in failed_learning and (now - failed_learning[key]).total_seconds() < settings.learn_retry_seconds:
-            continue
-        path = learned_path(*key)
-        if learned[key] and now.timestamp() - path.stat().st_mtime < settings.learn_interval_seconds:
+        if job["id"] <= last_learned_sources.get(key, 0):
             continue
         if (snapshot_directory(job["payload"]) / "page.html").is_file():
             planned.append((LEARN, {**job["payload"], "source_job_id": job["id"]}))
@@ -117,13 +112,12 @@ def plan_followups(jobs: list[dict], now: datetime) -> list[tuple[str, dict]]:
         key = (payload["website_id"], payload["route_type"])
         if job["id"] in extracted_sources or not learned[key]:
             continue
-        # A stale but valid template remains usable while its refresh is running.
         if (snapshot_directory(payload) / "page.html").is_file():
             planned.append((EXTRACTOR, {**payload, "source_job_id": job["id"]}))
     return planned
 
 
 def advance_pipeline() -> None:
-    for job_type, payload in plan_followups(get_pipeline_jobs(), datetime.now(timezone.utc)):
+    for job_type, payload in plan_followups(get_pipeline_jobs()):
         job_id = enqueue(job_type, payload)
         logger.info("Created %s job=%s from scrape=%s", job_type, job_id, payload["source_job_id"])

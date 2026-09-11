@@ -13,6 +13,7 @@ def handle_learn(payload: dict) -> None:
         snapshot_directory(payload) / "page.html",
         int(payload["website_id"]),
         payload["route_type"],
+        payload["snapshot_id"],
     )
 
 
