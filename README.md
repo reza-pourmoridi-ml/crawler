@@ -58,3 +58,42 @@
 ```
 
 تست‌های سرویس و صفحات از دیتابیس SQLite مجزا استفاده می‌کنند و داده‌های PostgreSQL اصلی را تغییر نمی‌دهند. Migrationها برای PostgreSQL نوشته شده‌اند.
+
+## زنجیرهٔ scrape، learn و extractor
+
+`orchestrator` تنها زمان‌بند زنجیره است. هر پنج دقیقه برای هر درخواست و وب‌سایت دارای تنظیمات کامل، job از نوع `scrape` می‌سازد؛ وجود job فعال برای همان درخواست/وب‌سایت مانع تکرار می‌شود. worker اسکرپر HTML را ذخیره می‌کند و صف وضعیت آن را به `done` تغییر می‌دهد. orchestrator در بررسی بعدی مراحل بعد را می‌سازد. هر worker فقط نوع job خودش را مصرف می‌کند؛ وضعیت‌های صف همان `pending`، `running`، `done` و `failed` هستند و retry و heartbeat از زیرساخت موجود استفاده می‌کنند.
+
+ماژول `app.learn` توابع سلول‌های ۵ و ۷ نوت‌بوک `test-ollama.ipynb` را اجرا می‌کند: استخراج کاندیدها و سپس تأیید کارت‌ها با Ollama. prompt، تنظیمات مدل و منطق پیمایش نوت‌بوک حفظ شده‌اند. نصب ابزارها، اجرای batch دیتاست Kaggle و راه‌اندازی Ollama درون نوت‌بوک، جای خود را به تنظیمات سرویس و job داده‌اند. Ollama باید جداگانه اجرا شود و مدل از قبل در آن موجود باشد؛ worker مدل را دانلود یا سرور Ollama را اجرا نمی‌کند.
+
+learn برای هر `(website_id, route_type)` مستقل است: داخلی و خارجی فایل‌های جدا دارند. پیش‌فرض نوسازی هفت روز است و با `LEARN_INTERVAL_SECONDS` تغییر می‌کند. ورودی، آخرین snapshot موفق همان وب‌سایت و نوع مسیر است؛ بنابراین شروع learn به وجود حداقل یک درخواست و crawl موفق وابسته است. برای هر داده learn مجزا اجرا نمی‌شود. تا وقتی job learn فعال است، نمونهٔ جدید job learn دیگری ایجاد نمی‌کند. پس از پایان retryهای صف، `LEARN_RETRY_SECONDS` حداقل فاصله از زمان برنامه‌ریزی آخرین تلاش ناموفق را تعیین می‌کند.
+
+ماژول `app.extractor` سلول‌های ۹ و ۱۰ را اجرا می‌کند: تطبیق ساختار با آستانهٔ `0.95` و استخراج `time`، `price`، `airline` و `text`. قیمت و ساعت مطابق قواعد نوت‌بوک استخراج می‌شوند و تبدیل واحد یا نرمال‌سازی جدیدی اضافه نشده است. ایرلاین‌ها در هر job از دیتابیس به شکل `{نام رسمی: [نام‌ها و نام‌های مستعار]}` خوانده می‌شوند. این worker به Ollama و Node نیاز ندارد. اگر learn هنوز وجود نداشته باشد، استخراج در orchestrator منتظر می‌ماند؛ اگر نسخهٔ قبلی موجود باشد، هنگام نوسازی هم قابل استفاده است. فایل learn فقط پس از خروجی غیرخالی و به‌صورت atomic جایگزین می‌شود.
+
+وابستگی‌های جدید را در محیط پروژه نصب کنید؛ Node و jsdom فقط برای worker learn لازم‌اند:
+
+```bash
+../.venv/bin/python -m pip install -r requirements-workers.txt
+npm ci --ignore-scripts --no-audit --no-fund
+ollama pull qwen2.5-coder:14b
+```
+
+Ollama را به‌صورت سرویس جدا اجرا کنید. سپس هر دستور زیر را در پردازش یا کانتینر مستقل اجرا کنید؛ یک نمونهٔ orchestrator کافی است:
+
+```bash
+../.venv/bin/python -m app.orchestration
+../.venv/bin/python -m app.scraper
+../.venv/bin/python -m app.learn
+../.venv/bin/python -m app.extractor
+```
+
+workerهای learn و extractor هر job را در پردازش فرزند اجرا می‌کنند تا timeout واقعاً آن کار را متوقف کند. پیش‌فرض timeout به‌ترتیب شش ساعت و پنج دقیقه است. تعداد workerهای learn را متناسب با ظرفیت Ollama تعیین کنید؛ تعداد workerهای extractor مستقل است.
+
+همهٔ پردازش‌ها باید به همان PostgreSQL و مسیر مشترک `STORAGE_ROOT` دسترسی داشته باشند. در اجرای چندماشینی/کانتینری، storage را در همان مسیر mount کنید و `OLLAMA_HOST` را برای worker learn تنظیم کنید. نام snapshot برای هر crawl یکتاست تا crawl بعدی ورودی learn را بازنویسی نکند:
+
+```text
+storage/raw/website_<id>/<domestic|international>/request_<id>/<snapshot_id>/page.html
+storage/learned/website_<id>/<domestic|international>/tickets.json
+storage/extracted/website_<id>/<domestic|international>/scrape_<job_id>.json
+```
+
+فایل learn همان لیست JSON از HTML کارت‌های تأییدشدهٔ نوت‌بوک است؛ در دیتابیس فقط metadata و وضعیت job نگهداری می‌شود. خروجی extractor نیز یک لیست JSON با چهار فیلد نوت‌بوک است. برای هر snapshot یک job استخراج ثبت می‌شود؛ شکست نهایی خودکار job تکراری ایجاد نمی‌کند. snapshotها و تاریخچهٔ jobها فعلاً نگهداری می‌شوند؛ پاک‌سازی خودکار تعریف نشده است. jobهای قدیمی `scrap` با payload بدون وب‌سایت به زنجیرهٔ جدید منتقل نمی‌شوند.

@@ -1,0 +1,7 @@
+{
+  "name": "crawler-html-cleaner",
+  "private": true,
+  "dependencies": {
+    "jsdom": "22.1.0"
+  }
+}

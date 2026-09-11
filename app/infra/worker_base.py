@@ -1,5 +1,6 @@
 # app/infra/worker_base.py
 import logging
+import multiprocessing
 import signal
 import threading
 from app.infra.queue import fetch_job, extend_lock, mark_done, mark_failed, sweep_stuck_jobs
@@ -11,7 +12,49 @@ IDLE_SLEEP = 5
 SWEEP_INTERVAL = 300  # هر ۵ دقیقه جاب‌های گیرکرده رو آزاد کن
 
 
-def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_timeout: int = 300):
+def _process_target(handler, payload, connection):
+    try:
+        handler(payload)
+        connection.send(None)
+    except BaseException as exc:
+        connection.send(f"{type(exc).__name__}: {exc}")
+    finally:
+        connection.close()
+
+
+def run_handler_in_process(handler, payload: dict, timeout: int) -> None:
+    """A timed-out CPU/AI task must stop before its retry starts."""
+    context = multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=_process_target, args=(handler, payload, sender))
+    try:
+        process.start()
+        sender.close()
+        process.join(timeout)
+        if process.is_alive():
+            raise TimeoutError(f"Handler exceeded {timeout}s")
+        if process.exitcode != 0:
+            raise RuntimeError(f"Handler process exited with code {process.exitcode}")
+        if not receiver.poll():
+            raise RuntimeError("Handler process exited without a result")
+        error = receiver.recv()
+        if error is not None:
+            raise RuntimeError(error)
+    finally:
+        if process.pid is not None:
+            if process.is_alive():
+                process.terminate()
+                process.join(5)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+            process.close()
+        sender.close()
+        receiver.close()
+
+
+def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_timeout: int = 300,
+               *, isolate_handlers: bool = False):
     """
     لوپ اصلی ورکر. هر ماژول (extraction, learning, ...) این تابع رو با
     type ها و handler های خودش صدا می‌زنه.
@@ -64,22 +107,24 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
             if handler is None:
                 raise ValueError(f"No handler for job type: {job_type}")
 
-            result = [None]
-            exc = [None]
+            if isolate_handlers:
+                run_handler_in_process(handler, job["payload"], timeout)
+            else:
+                exc = [None]
 
-            def target():
-                try:
-                    handler(job["payload"])
-                except Exception as e:
-                    exc[0] = e
+                def target():
+                    try:
+                        handler(job["payload"])
+                    except Exception as e:
+                        exc[0] = e
 
-            t = threading.Thread(target=target, daemon=True)
-            t.start()
-            t.join(timeout=timeout)
-            if t.is_alive():
-                raise TimeoutError(f"Handler exceeded {timeout}s for job {job_id}")
-            if exc[0]:
-                raise exc[0]
+                t = threading.Thread(target=target, daemon=True)
+                t.start()
+                t.join(timeout=timeout)
+                if t.is_alive():
+                    raise TimeoutError(f"Handler exceeded {timeout}s for job {job_id}")
+                if exc[0]:
+                    raise exc[0]
 
             mark_done(job_id)
             logger.info("Job %s (%s) done", job_id, job_type)

@@ -48,6 +48,7 @@ scoring_eval_results.json
 build/
 dist/
 *.egg-info/
+node_modules/
 
 # Logs and temporary files
 *.log

@@ -3,18 +3,8 @@ import random
 import re
 import shutil
 from pathlib import Path
-from datetime import datetime
-
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
-
 HARD_PAUSE_LOAD_TIME = 20
-OUTPUT_DIR = Path("alibaba_raw_data")
-OUTPUT_DIR.mkdir(exist_ok=True)
-
-
-def clean_filename(name: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_-]+", "_", name)
-
 
 def find_chromium_executable():
     candidates = [
@@ -922,13 +912,15 @@ async def extract_visible_semantic_text(page) -> dict:
     return clean_semantic_data(raw_data)
 
 
-async def extract_alibaba_data(
+async def scrape_url(
     target_url: str,
+    output_dir: Path,
     headless_mode: bool = True,
 ) -> dict:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    sanitized_url = clean_filename(target_url.split("?")[0].split("//")[-1])
-    file_prefix = f"{timestamp}_{sanitized_url}"
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
     network_responses = []
     network_requests = []
     auth_state_file = Path("auth/auth.json")
@@ -1041,7 +1033,7 @@ async def extract_alibaba_data(
             "captcha_timeout",
         ]:
             screenshot_path = (
-                OUTPUT_DIR / f"{file_prefix}_captcha.png"
+                    output_dir / "captcha.png"
             )
             await page.screenshot(
                 path=str(screenshot_path),
@@ -1062,20 +1054,24 @@ async def extract_alibaba_data(
         current_url = page.url
 
         clean_html = await extract_clean_html(page)
-        dom_path = OUTPUT_DIR / f"{file_prefix}.html"
+        dom_path = output_dir / "page.html"
         dom_path.write_text(
             clean_html,
             encoding="utf-8",
         )
 
-        screenshot_path = OUTPUT_DIR / f"{file_prefix}.png"
+        screenshot_path = (
+                output_dir / "screenshot.png"
+        )
         await page.screenshot(
             path=str(screenshot_path),
             full_page=True,
         )
 
         extracted_texts = await extract_visible_texts_with_ids(page)
-        texts_path = OUTPUT_DIR / f"{file_prefix}_texts.txt"
+        texts_path = (
+                output_dir / "texts.txt"
+        )
         texts_path.write_text(
             "\\n".join(
                 f"{item['id']}\\t{item['text']}"
@@ -1101,16 +1097,3 @@ async def extract_alibaba_data(
             "screenshot_path": str(screenshot_path),
             "texts_path": str(texts_path),
         }
-
-
-if __name__ == "__main__":
-    test_url = (
-        "https://www.snapptrip.ir/flights/THR_city/MHD_city"
-        "?adultCount=1&departureDate=2026-07-24"
-    )
-    asyncio.run(
-        extract_alibaba_data(
-            test_url,
-            headless_mode=True,
-        )
-    )
