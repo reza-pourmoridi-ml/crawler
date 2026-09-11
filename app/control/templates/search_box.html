@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+
+{% block title %}
+جستجوی پرواز
+{% endblock %}
+
+{% block content %}
+
+
+<div class="page-header">
+
+    <div>
+
+        <h1>
+            جستجوی پرواز
+        </h1>
+
+        <p class="help-text">
+            نوع مسیر، مبدأ، مقصد
+            و تاریخ شمسی سفر را وارد کنید.
+        </p>
+
+    </div>
+
+</div>
+
+
+{% if saved %}
+
+<div
+    class="success"
+    role="status"
+>
+    درخواست جستجو
+    با موفقیت ثبت شد.
+</div>
+
+{% endif %}
+
+
+{% if error %}
+
+<div
+    class="error"
+    role="alert"
+>
+    {{ error }}
+</div>
+
+{% endif %}
+
+
+{% if not airports %}
+
+<div class="empty-state">
+
+    برای ثبت درخواست جستجو،
+    ابتدا فرودگاه‌ها را Seed کنید.
+
+</div>
+
+
+{% else %}
+
+
+<form
+    method="post"
+    action="/control/search-box/page"
+    class="search-box-form"
+>
+
+    <div class="search-box-grid">
+
+
+        <!-- Route Type -->
+
+        <div class="form-field">
+
+            <label for="route-type">
+                نوع مسیر
+            </label>
+
+            <select
+                id="route-type"
+                name="route_type"
+                required
+            >
+
+                <option
+                    value="domestic"
+
+                    {% if
+                        submitted_route_type
+                        ==
+                        'domestic'
+                    %}
+                        selected
+                    {% endif %}
+                >
+                    داخلی
+                </option>
+
+
+                <option
+                    value="international"
+
+                    {% if
+                        submitted_route_type
+                        ==
+                        'international'
+                    %}
+                        selected
+                    {% endif %}
+                >
+                    خارجی
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <!-- Origin -->
+
+        <div class="form-field">
+
+            <label for="origin-airport">
+                مبدأ
+            </label>
+
+            <select
+                id="origin-airport"
+                name="origin_airport_id"
+                required
+            >
+
+                <option value="">
+                    انتخاب مبدأ
+                </option>
+
+
+                {% for airport in airports %}
+
+                    {% if
+                        airport.category
+                        ==
+                        submitted_route_type
+                    %}
+
+                    <option
+                        value="{{ airport.id }}"
+
+                        {% if
+                            submitted_origin_airport_id
+                            ==
+                            airport.id
+                        %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ airport.name_fa }}
+                    </option>
+
+                    {% endif %}
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <!-- Destination -->
+
+        <div class="form-field">
+
+            <label for="destination-airport">
+                مقصد
+            </label>
+
+            <select
+                id="destination-airport"
+                name="destination_airport_id"
+                required
+            >
+
+                <option value="">
+                    انتخاب مقصد
+                </option>
+
+
+                {% for airport in airports %}
+
+                    {% if
+                        airport.category
+                        ==
+                        submitted_route_type
+                    %}
+
+                    <option
+                        value="{{ airport.id }}"
+
+                        {% if
+                            submitted_destination_airport_id
+                            ==
+                            airport.id
+                        %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ airport.name_fa }}
+                    </option>
+
+                    {% endif %}
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <!-- Jalali Date -->
+
+        <div class="form-field">
+
+            <label
+                for="departure-date-jalali"
+            >
+                تاریخ سفر (شمسی)
+            </label>
+
+            <input
+                id="departure-date-jalali"
+
+                name="departure_date_jalali"
+
+                type="text"
+
+                value="{{
+                    submitted_departure_date_jalali
+                }}"
+
+                placeholder="1405-06-20"
+
+                inputmode="numeric"
+
+                autocomplete="off"
+
+                required
+
+                dir="ltr"
+            >
+
+
+
+        </div>
+
+
+        <!-- Submit -->
+
+        <div
+            class="
+                form-field
+                search-submit-field
+            "
+        >
+
+            <button
+                class="button"
+                type="submit"
+            >
+                ثبت درخواست
+            </button>
+
+        </div>
+
+    </div>
+
+</form>
+
+
+
+
+
+{% endif %}
+
+
+
+<!-- ========================================= -->
+<!-- Domestic requests -->
+<!-- ========================================= -->
+
+
+<div class="request-section">
+
+    <div class="requests-header">
+
+        <div>
+
+            <h2>
+                درخواست‌های مسیر داخلی
+            </h2>
+
+            <p class="help-text">
+                جدیدترین درخواست‌های داخلی
+                در ابتدای جدول قرار دارند.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    {% if domestic_requests %}
+
+
+    <div class="table-wrap">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        شناسه
+                    </th>
+
+                    <th>
+                        مبدأ
+                    </th>
+
+                    <th>
+                        مقصد
+                    </th>
+
+                    <th>
+                        تاریخ سفر
+                    </th>
+
+                    <th>
+                        زمان ثبت
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for item in domestic_requests %}
+
+                <tr>
+
+                    <td>
+                        {{ item.id }}
+                    </td>
+
+                    <td>
+                        {{
+                            item.origin_airport
+                            .name_fa
+                        }}
+                    </td>
+
+                    <td>
+                        {{
+                            item.destination_airport
+                            .name_fa
+                        }}
+                    </td>
+
+                    <td>
+
+                        <bdi>
+                            {{
+                                item.departure_date_jalali
+                            }}
+                        </bdi>
+
+                    </td>
+
+                    <td>
+
+                        <bdi>
+                            {{
+                                item.created_at
+                                .strftime(
+                                    '%Y-%m-%d %H:%M'
+                                )
+                            }}
+                        </bdi>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    {% else %}
+
+
+    <div
+        class="
+            empty-state
+            compact-empty-state
+        "
+    >
+
+        هنوز درخواست مسیر داخلی
+        ثبت نشده است.
+
+    </div>
+
+
+    {% endif %}
+
+</div>
+
+
+
+<!-- ========================================= -->
+<!-- International requests -->
+<!-- ========================================= -->
+
+
+<div class="request-section">
+
+    <div class="requests-header">
+
+        <div>
+
+            <h2>
+                درخواست‌های مسیر خارجی
+            </h2>
+
+            <p class="help-text">
+                جدیدترین درخواست‌های خارجی
+                در ابتدای جدول قرار دارند.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    {% if international_requests %}
+
+
+    <div class="table-wrap">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        شناسه
+                    </th>
+
+                    <th>
+                        مبدأ
+                    </th>
+
+                    <th>
+                        مقصد
+                    </th>
+
+                    <th>
+                        تاریخ سفر
+                    </th>
+
+                    <th>
+                        زمان ثبت
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for item in international_requests %}
+
+                <tr>
+
+                    <td>
+                        {{ item.id }}
+                    </td>
+
+                    <td>
+                        {{
+                            item.origin_airport
+                            .name_fa
+                        }}
+                    </td>
+
+                    <td>
+                        {{
+                            item.destination_airport
+                            .name_fa
+                        }}
+                    </td>
+
+                    <td>
+
+                        <bdi>
+                            {{
+                                item.departure_date_jalali
+                            }}
+                        </bdi>
+
+                    </td>
+
+                    <td>
+
+                        <bdi>
+                            {{
+                                item.created_at
+                                .strftime(
+                                    '%Y-%m-%d %H:%M'
+                                )
+                            }}
+                        </bdi>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    {% else %}
+
+
+    <div
+        class="
+            empty-state
+            compact-empty-state
+        "
+    >
+
+        هنوز درخواست مسیر خارجی
+        ثبت نشده است.
+
+    </div>
+
+
+    {% endif %}
+
+</div>
+
+
+
+<!--
+    فقط برای تغییر فوری dropdownهاست.
+    هیچ کتابخانه یا package JS
+    استفاده نشده.
+-->
+
+<script>
+
+(() => {
+
+    const airports =
+        {{ airport_options | tojson }};
+
+    const routeType =
+        document.getElementById(
+            "route-type"
+        );
+
+    const origin =
+        document.getElementById(
+            "origin-airport"
+        );
+
+    const destination =
+        document.getElementById(
+            "destination-airport"
+        );
+
+
+    if (
+        !routeType
+        ||
+        !origin
+        ||
+        !destination
+    ) {
+        return;
+    }
+
+
+    const initialOrigin =
+        "{{ submitted_origin_airport_id or '' }}";
+
+    const initialDestination =
+        "{{ submitted_destination_airport_id or '' }}";
+
+
+    function fillAirportSelect(
+        select,
+        category,
+        selectedValue
+    ) {
+
+        select.innerHTML = "";
+
+
+        const placeholder =
+            document.createElement(
+                "option"
+            );
+
+        placeholder.value = "";
+
+        placeholder.textContent = (
+            select === origin
+            ? "انتخاب مبدأ"
+            : "انتخاب مقصد"
+        );
+
+        select.appendChild(
+            placeholder
+        );
+
+
+        airports
+
+            .filter(
+                (airport) =>
+                    airport.category
+                    ===
+                    category
+            )
+
+            .forEach(
+                (airport) => {
+
+                    const option =
+                        document.createElement(
+                            "option"
+                        );
+
+                    option.value =
+                        String(
+                            airport.id
+                        );
+
+                    option.textContent =
+                        airport.name;
+
+
+                    if (
+                        String(
+                            airport.id
+                        )
+                        ===
+                        String(
+                            selectedValue
+                        )
+                    ) {
+
+                        option.selected =
+                            true;
+                    }
+
+                    select.appendChild(
+                        option
+                    );
+                }
+            );
+    }
+
+
+    function syncAirports(
+        keepCurrentSelection
+    ) {
+
+        const category =
+            routeType.value;
+
+
+        const originValue =
+            keepCurrentSelection
+
+            ? (
+                origin.value
+                ||
+                initialOrigin
+            )
+
+            : "";
+
+
+        const destinationValue =
+            keepCurrentSelection
+
+            ? (
+                destination.value
+                ||
+                initialDestination
+            )
+
+            : "";
+
+
+        fillAirportSelect(
+            origin,
+            category,
+            originValue
+        );
+
+
+        fillAirportSelect(
+            destination,
+            category,
+            destinationValue
+        );
+    }
+
+
+    routeType.addEventListener(
+        "change",
+        () => {
+
+            // وقتی نوع مسیر عوض می‌شود
+            // انتخاب‌های قبلی reset می‌شوند.
+            syncAirports(
+                false
+            );
+        }
+    );
+
+
+    syncAirports(
+        true
+    );
+
+})();
+
+</script>
+
+
+{% endblock %}

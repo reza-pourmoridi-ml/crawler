@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ 'ویرایش وب‌سایت' if website.id else 'افزودن وب‌سایت' }}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1>
+            {{ 'ویرایش وب‌سایت' if website.id else 'افزودن وب‌سایت' }}
+        </h1>
+
+        <p class="help-text">
+            فرمت URL جستجوی داخلی و خارجی و
+            نحوه ارسال تاریخ به وب‌سایت را مشخص کنید.
+        </p>
+    </div>
+
+    <a
+        class="button button-secondary"
+        href="/control/websites/page"
+    >
+        فهرست وب‌سایت‌ها
+    </a>
+</div>
+
+
+{% if error %}
+<div class="error" role="alert">
+    {{ error }}
+</div>
+{% endif %}
+
+
+<form
+    method="post"
+    action="{{ '/control/websites/page/' ~ website.id ~ '/edit'
+        if website.id
+        else '/control/websites/page/new' }}"
+>
+
+    <div class="form-field">
+
+        <label for="website-name">
+            نام وب‌سایت
+        </label>
+
+        <input
+            id="website-name"
+            name="name"
+            type="text"
+            value="{{ website.name }}"
+            required
+            maxlength="255"
+            placeholder="مثلاً علی‌بابا"
+        >
+
+    </div>
+
+
+    <div class="form-field">
+
+        <label for="domestic-url-format">
+            فرمت URL پرواز داخلی
+        </label>
+
+        <textarea
+            id="domestic-url-format"
+            name="domestic_url_format"
+            required
+            maxlength="4096"
+            rows="4"
+            dir="ltr"
+            placeholder="https://www.alibaba.ir/flights/{origin_path}-{destination_path}?departing={date}"
+        >{{ website.domestic_url_format or '' }}</textarea>
+
+    </div>
+
+
+    <div class="form-field">
+
+        <label for="international-url-format">
+            فرمت URL پرواز خارجی
+        </label>
+
+        <textarea
+            id="international-url-format"
+            name="international_url_format"
+            required
+            maxlength="4096"
+            rows="4"
+            dir="ltr"
+            placeholder="https://www.alibaba.ir/international/{origin_path}-{destination_path}?departing={date}"
+        >{{ website.international_url_format or '' }}</textarea>
+
+    </div>
+
+
+    <p class="help-text">
+
+        هر URL باید دقیقاً این سه placeholder را داشته باشد:
+
+        <code>{origin_path}</code>
+
+        برای کد مبدأ،
+
+        <code>{destination_path}</code>
+
+        برای کد مقصد و
+
+        <code>{date}</code>
+
+        برای تاریخ.
+
+    </p>
+
+
+    <div class="form-grid">
+
+        <div class="form-field">
+
+            <label for="date-calendar">
+                نوع تقویم تاریخ
+            </label>
+
+            <select
+                id="date-calendar"
+                name="date_calendar"
+                required
+            >
+
+                <option
+                    value="jalali"
+                    {% if website.date_calendar == 'jalali' %}
+                    selected
+                    {% endif %}
+                >
+                    شمسی (Jalali)
+                </option>
+
+                <option
+                    value="gregorian"
+                    {% if website.date_calendar == 'gregorian' %}
+                    selected
+                    {% endif %}
+                >
+                    میلادی (Gregorian)
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="form-field">
+
+            <label for="date-format">
+                فرمت تاریخ
+            </label>
+
+            <input
+                id="date-format"
+                name="date_format"
+                type="text"
+                value="{{ website.date_format or 'YYYY-MM-DD' }}"
+                required
+                maxlength="32"
+                placeholder="YYYY-MM-DD"
+                dir="ltr"
+            >
+
+            <p class="help-text">
+                مثال:
+                <code>YYYY-MM-DD</code>
+                برای علی‌بابا خروجی‌ای مثل
+                <code>1405-06-20</code>
+                تولید خواهد کرد.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="actions">
+
+        <button
+            class="button"
+            type="submit"
+        >
+            {{ 'ذخیره تغییرات' if website.id else 'ثبت وب‌سایت' }}
+        </button>
+
+        <a
+            class="button button-secondary"
+            href="{{ '/control/websites/page/' ~ website.id
+                if website.id
+                else '/control/websites/page' }}"
+        >
+            انصراف
+        </a>
+
+    </div>
+
+</form>
+
+{% endblock %}

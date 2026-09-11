@@ -1,36 +1,124 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Crawler Control{% endblock %}
+{% block title %}
+پنل مدیریت خزشگر پرواز
+{% endblock %}
 
 {% block content %}
-<section>
-    <h2>{{ message }}</h2>
-    <p>Crawler Status: <mark>{{ status }}</mark></p>
-</section>
 
-<section>
-    <h3>Active Tasks</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Task ID</th>
-                <th>Target Domain</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for task in tasks %}
-            <tr>
-                <td><code>{{ task.id }}</code></td>
-                <td>{{ task.domain }}</td>
-                <td>{{ task.state }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="3">No active tasks found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</section>
+<div class="page-header">
+
+    <div>
+
+        <h1>
+            پنل مدیریت
+        </h1>
+
+        <p>
+            درخواست‌های جستجو، ایرلاین‌ها،
+            وب‌سایت‌ها و کد فرودگاه‌ها
+            را مدیریت کنید.
+        </p>
+
+    </div>
+
+</div>
+
+
+<div class="summary-grid">
+    <a
+    class="summary-card"
+    href="/control/search-box/page"
+    >
+
+        <h2>
+            جستجوی پرواز
+        </h2>
+
+        <p>
+            ثبت مبدأ، مقصد و تاریخ سفر
+            و مشاهده درخواست‌های جستجو
+        </p>
+
+    </a>
+
+    <a
+        class="summary-card"
+        href="/control/airlines/page"
+    >
+
+        <h2>
+            ایرلاین‌ها
+        </h2>
+
+        <p>
+            ثبت نام رسمی و نام‌های مستعار
+            شرکت‌های هواپیمایی
+        </p>
+
+    </a>
+
+
+    <a
+        class="summary-card"
+        href="/control/websites/page"
+    >
+
+        <h2>
+            وب‌سایت‌ها
+        </h2>
+
+        <p>
+            ثبت و مدیریت وب‌سایت‌های
+            جست‌وجوی پرواز
+        </p>
+
+    </a>
+
+
+    <a
+        class="summary-card"
+        href="/control/flight-paths/page/domestic"
+    >
+
+        <h2>
+            فرودگاه‌های داخلی
+        </h2>
+
+        <p>
+            ویرایش کد هر فرودگاه داخلی
+            برای تمام وب‌سایت‌ها در یک جدول
+        </p>
+
+    </a>
+
+
+    <a
+        class="summary-card"
+        href="/control/flight-paths/page/foreign"
+    >
+
+        <h2>
+            فرودگاه‌های خارجی
+        </h2>
+
+        <p>
+            ویرایش کد هر فرودگاه خارجی
+            برای تمام وب‌سایت‌ها در یک جدول
+        </p>
+
+    </a>
+
+</div>
+
+
+<p
+    class="help-text"
+    style="margin-top: 24px;"
+>
+    فرودگاه‌ها مستقل از وب‌سایت‌ها
+    نگهداری می‌شوند؛ فقط کد هر فرودگاه
+    برای هر وب‌سایت متفاوت است.
+</p>
+
 {% endblock %}

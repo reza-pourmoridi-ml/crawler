@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{% if flight_path_id %}ویرایش کد فرودگاه{% else %}افزودن کد فرودگاه{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>{% if flight_path_id %}ویرایش کد فرودگاه{% else %}افزودن کد فرودگاه{% endif %}</h2>
+        <p class="help-text">هر رکورد، کد یک فرودگاه در یک وب‌سایت است. برای ثبت همان فرودگاه در وب‌سایت دیگر، رکورد جداگانه اضافه کنید.</p>
+    </div>
+    <a class="button button-secondary" href="/control/flight-paths/page">بازگشت به فهرست</a>
+</div>
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+{% if websites %}
+<form method="post" action="{% if flight_path_id %}/control/flight-paths/page/{{ flight_path_id }}/edit{% else %}/control/flight-paths/page/new{% endif %}">
+    <div class="form-grid">
+        <div class="form-field">
+            <label for="website-id">وب‌سایت</label>
+            <select id="website-id" name="website_id" required>
+                <option value="">یک وب‌سایت انتخاب کنید</option>
+                {% if values.website_id and not known_website %}
+                <option value="{{ values.website_id }}" selected>وب‌سایت نامعتبر: {{ values.website_id }}</option>
+                {% endif %}
+                {% for website in websites %}
+                <option value="{{ website.id }}"{% if website.id|string == values.website_id|string %} selected{% endif %}>{{ website.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="airport-name">نام فرودگاه</label>
+            <input id="airport-name" name="airport_name_fa" value="{{ values.airport_name_fa }}" maxlength="255" required placeholder="مثلاً مشهد">
+            <p class="help-text">نامی روشن و یکسان برای فرودگاه وارد کنید.</p>
+        </div>
+        <div class="form-field">
+            <label for="airport-code">کد فرودگاه در وب‌سایت</label>
+            <input id="airport-code" name="code" value="{{ values.code }}" dir="ltr" maxlength="255" required placeholder="MHD" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="code-help">
+            <p id="code-help" class="help-text">کد را دقیقاً مانند نشانی وب‌سایت و بدون فاصله وارد کنید. حروف بزرگ و کوچک و نشانه‌ها حفظ می‌شوند؛ مانند <bdi>MHD</bdi>، <bdi>THR_city</bdi> یا <bdi>thr,1</bdi>.</p>
+        </div>
+    </div>
+    <div class="actions">
+        <button type="submit" class="button">{% if flight_path_id %}ذخیره تغییرات{% else %}ثبت کد فرودگاه{% endif %}</button>
+        <a class="button button-secondary" href="/control/flight-paths/page">انصراف</a>
+    </div>
+</form>
+{% else %}
+<div class="empty-state">
+    <p>برای ثبت کد فرودگاه، ابتدا یک وب‌سایت اضافه کنید.</p>
+    <a class="button" href="/control/websites/page/new">افزودن وب‌سایت</a>
+</div>
+{% endif %}
+{% endblock %}

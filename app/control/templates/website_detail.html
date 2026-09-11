@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ website.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ website.name }}</h1><p class="help-text">اطلاعات وب‌سایت و کدهای فرودگاه مربوط به آن</p></div>
+    <a class="button button-secondary" href="/control/websites/page">فهرست وب‌سایت‌ها</a>
+</div>
+<dl>
+    <dt>نام وب‌سایت</dt><dd>{{ website.name }}</dd>
+    <dt>نشانی اصلی</dt><dd><a href="{{ website.base_url }}" target="_blank" rel="noopener noreferrer"><bdi dir="ltr">{{ website.base_url }}</bdi></a></dd>
+    <dt>تاریخ ثبت</dt><dd><bdi>{{ website.created_at.strftime('%Y-%m-%d %H:%M') }}</bdi></dd>
+</dl>
+<div class="actions">
+    <a
+    class="button"
+    href="/control/flight-paths/page/domestic"
+>
+    کدهای فرودگاه‌های داخلی
+</a>
+
+<a
+    class="button"
+    href="/control/flight-paths/page/foreign"
+>
+    کدهای فرودگاه‌های خارجی
+</a>
+    <a class="button button-secondary" href="/control/websites/page/{{ website.id }}/edit">ویرایش وب‌سایت</a>
+    <a class="button button-danger" href="/control/websites/page/{{ website.id }}/delete">حذف وب‌سایت</a>
+</div>
+{% endblock %}

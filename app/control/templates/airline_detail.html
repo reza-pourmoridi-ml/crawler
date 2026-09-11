@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ airline.official_name_fa }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>{{ airline.official_name_fa }}</h2>
+        <p class="help-text">مشخصات ایرلاین و نام‌های مستعار آن در سایت‌های فروش بلیت</p>
+    </div>
+    <div class="actions">
+        <a class="button" href="/control/airlines/page/{{ airline.id }}/edit">ویرایش</a>
+        <a class="button button-danger" href="/control/airlines/page/{{ airline.id }}/delete">حذف</a>
+        <a class="button button-secondary" href="/control/airlines/page">بازگشت به فهرست</a>
+    </div>
+</div>
+<dl>
+    <dt>شناسه</dt>
+    <dd>{{ airline.id }}</dd>
+    <dt>نام رسمی فارسی</dt>
+    <dd>{{ airline.official_name_fa }}</dd>
+    <dt>نام‌های مستعار</dt>
+    <dd>
+        {% for alias in airline.aliases %}
+        <code>{{ alias.alias_name }}</code>{% if not loop.last %}، {% endif %}
+        {% else %}بدون نام مستعار{% endfor %}
+    </dd>
+</dl>
+{% endblock %}

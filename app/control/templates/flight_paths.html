@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ page_title }}
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h2>{{ page_title }}</h2>
+
+        <p class="help-text">
+            {{ page_description }}
+        </p>
+
+        <p class="help-text">
+            اگر کدی برای یک وب‌سایت ندارید،
+            فیلد را خالی بگذارید.
+            خالی‌کردن کد قبلی و ذخیره،
+            آن نگاشت را حذف می‌کند.
+        </p>
+    </div>
+</div>
+
+
+{% if saved %}
+
+<div class="success" role="status">
+    تغییر با موفقیت ذخیره شد.
+</div>
+
+{% endif %}
+
+
+{% if error %}
+
+<div class="error" role="alert">
+    {{ error }}
+</div>
+
+{% endif %}
+
+
+{% if not websites %}
+
+<div class="empty-state">
+
+    <p>
+        برای ثبت کد فرودگاه،
+        ابتدا حداقل یک وب‌سایت اضافه کنید.
+    </p>
+
+    <a
+        class="button"
+        href="/control/websites/page/new"
+    >
+        افزودن وب‌سایت
+    </a>
+
+</div>
+
+
+{% elif not airports %}
+
+<div class="empty-state">
+
+    <p>
+        برای این دسته هنوز فرودگاهی
+        ثبت نشده است.
+    </p>
+
+    <p class="help-text">
+        فرودگاه‌ها را در سیدر
+
+        <code>
+            app/infra/seeders/airports.py
+        </code>
+
+        اضافه کنید و سیدر را اجرا کنید.
+    </p>
+
+</div>
+
+
+{% else %}
+
+<div class="table-wrap airport-matrix-wrap">
+
+    <table class="airport-matrix">
+
+        <thead>
+
+            <tr>
+
+                <th class="airport-name-column">
+                    فرودگاه
+                </th>
+
+                {% for website in websites %}
+
+                <th>
+                    <a
+                        href="/control/websites/page/{{ website.id }}"
+                    >
+                        {{ website.name }}
+                    </a>
+                </th>
+
+                {% endfor %}
+
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for airport in airports %}
+
+            <tr>
+
+                <th class="airport-name-column">
+                    {{ airport.name_fa }}
+                </th>
+
+
+                {% for website in websites %}
+
+                <td>
+
+                    <form
+                        class="code-cell-form"
+                        method="post"
+                        action="/control/flight-paths/page/{{ page_category }}/code"
+                    >
+
+                        <input
+                            type="hidden"
+                            name="airport_id"
+                            value="{{ airport.id }}"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="website_id"
+                            value="{{ website.id }}"
+                        >
+
+
+                        {% if
+                            submitted_airport_id == airport.id
+                            and
+                            submitted_website_id == website.id
+                        %}
+
+                            {% set current_code =
+                                submitted_code
+                            %}
+
+                        {% else %}
+
+                            {% set current_code =
+                                matrix
+                                .get(airport.id, {})
+                                .get(website.id, '')
+                            %}
+
+                        {% endif %}
+
+
+                        <input
+                            class="airport-code-input"
+                            type="text"
+                            name="code"
+
+                            value="{{ current_code }}"
+
+                            maxlength="255"
+
+                            placeholder="ثبت نشده"
+
+                            dir="ltr"
+
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+
+                            aria-label="
+                                کد {{ airport.name_fa }}
+                                در {{ website.name }}
+                            "
+                        >
+
+
+                        <button
+                            class="button button-small"
+                            type="submit"
+                        >
+                            ذخیره
+                        </button>
+
+                    </form>
+
+                </td>
+
+                {% endfor %}
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endif %}
+
+{% endblock %}

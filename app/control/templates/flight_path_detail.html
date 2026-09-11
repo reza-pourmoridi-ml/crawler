@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ flight_path.airport_name_fa }} — {{ flight_path.website.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h2>{{ flight_path.airport_name_fa }}</h2><p class="help-text">کد فرودگاه در {{ flight_path.website.name }}</p></div>
+    <a class="button button-secondary" href="/control/flight-paths/page">بازگشت به فهرست</a>
+</div>
+<div class="table-wrap">
+    <table>
+        <tbody>
+            <tr><th>شناسه</th><td>{{ flight_path.id }}</td></tr>
+            <tr><th>نام فرودگاه</th><td>{{ flight_path.airport_name_fa }}</td></tr>
+            <tr><th>وب‌سایت</th><td><a href="/control/websites/page/{{ flight_path.website_id }}">{{ flight_path.website.name }}</a></td></tr>
+            <tr><th>نشانی وب‌سایت</th><td><bdi>{{ flight_path.website.base_url }}</bdi></td></tr>
+            <tr><th>کد فرودگاه در وب‌سایت</th><td><code dir="ltr">{{ flight_path.code }}</code></td></tr>
+        </tbody>
+    </table>
+</div>
+<div class="actions">
+    <a class="button" href="/control/flight-paths/page/{{ flight_path.id }}/edit">ویرایش</a>
+    <a class="button button-danger" href="/control/flight-paths/page/{{ flight_path.id }}/delete">حذف</a>
+    <a class="button button-secondary" href="/control/flight-paths/page?website_id={{ flight_path.website_id }}">همهٔ کدهای {{ flight_path.website.name }}</a>
+</div>
+{% endblock %}

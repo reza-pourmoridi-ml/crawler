@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}
+وب‌سایت‌ها
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+
+    <div>
+        <h1>وب‌سایت‌ها</h1>
+
+        <p class="help-text">
+            فرمت URL جستجوی داخلی/خارجی
+            و تنظیمات تاریخ هر وب‌سایت را مدیریت کنید.
+        </p>
+    </div>
+
+    <a
+        class="button"
+        href="/control/websites/page/new"
+    >
+        افزودن وب‌سایت
+    </a>
+
+</div>
+
+
+{% if websites %}
+
+<div class="table-wrap">
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>نام وب‌سایت</th>
+                <th>تقویم</th>
+                <th>فرمت تاریخ</th>
+                <th>عملیات</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+        {% for website in websites %}
+
+            <tr>
+
+                <td>
+                    <a
+                        href="/control/websites/page/{{ website.id }}"
+                    >
+                        {{ website.name }}
+                    </a>
+                </td>
+
+
+                <td>
+
+                    {% if website.date_calendar == 'jalali' %}
+                        شمسی
+
+                    {% elif website.date_calendar == 'gregorian' %}
+                        میلادی
+
+                    {% else %}
+                        —
+                    {% endif %}
+
+                </td>
+
+
+                <td>
+                    <code>
+                        {{ website.date_format or '—' }}
+                    </code>
+                </td>
+
+
+                <td>
+
+                    <div class="actions">
+
+                        <a
+                            class="button button-secondary"
+                            href="/control/websites/page/{{ website.id }}"
+                        >
+                            مشاهده
+                        </a>
+
+                        <a
+                            class="button"
+                            href="/control/websites/page/{{ website.id }}/edit"
+                        >
+                            ویرایش
+                        </a>
+
+                        <a
+                            class="button button-danger"
+                            href="/control/websites/page/{{ website.id }}/delete"
+                        >
+                            حذف
+                        </a>
+
+                    </div>
+
+                </td>
+
+            </tr>
+
+        {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{% else %}
+
+<div class="empty-state">
+    هیچ وب‌سایتی ثبت نشده است.
+</div>
+
+{% endif %}
+
+{% endblock %}

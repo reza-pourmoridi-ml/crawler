@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}حذف کد فرودگاه{% endblock %}
+{% block content %}
+<div class="page-header"><h2>حذف کد فرودگاه</h2></div>
+<p>کد <strong><bdi>{{ flight_path.code }}</bdi></strong> برای فرودگاه <strong>{{ flight_path.airport_name_fa }}</strong> در <strong>{{ flight_path.website.name }}</strong> حذف شود؟</p>
+<p class="help-text">پس از حذف، برای استفادهٔ دوباره باید این کد را ثبت کنید.</p>
+<form method="post" action="/control/flight-paths/page/{{ flight_path.id }}/delete" class="actions">
+    <button type="submit" class="button button-danger">بله، حذف کد فرودگاه</button>
+    <a class="button button-secondary" href="/control/flight-paths/page/{{ flight_path.id }}">انصراف</a>
+</form>
+{% endblock %}

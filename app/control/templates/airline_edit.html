@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {{ 'افزودن ایرلاین' if creating else 'ویرایش ایرلاین' }}
+{% endblock %}
+
+
+{% block content %}
+
+<h2>
+    {{ 'افزودن ایرلاین' if creating else 'ویرایش ایرلاین' }}
+</h2>
+
+
+{% if error %}
+
+<div role="alert" class="error"
+    style="
+        background: #7f1d1d;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    "
+>
+    {{ error }}
+</div>
+
+{% endif %}
+
+
+<form
+    method="post"
+    action="{{ '/control/airlines/page/new' if creating else '/control/airlines/page/' ~ airline.id ~ '/edit' }}"
+>
+
+
+    <div style="margin-bottom: 24px;">
+
+        <label for="official-name">
+            نام رسمی فارسی
+        </label>
+
+        <input
+            type="text"
+            id="official-name"
+            name="official_name_fa"
+            value="{{ airline.official_name_fa }}"
+            required
+            maxlength="255"
+            style="
+                width: 100%;
+                margin-top: 8px;
+                padding: 10px;
+                background: #0f172a;
+                color: #e2e8f0;
+                border: 1px solid #475569;
+                border-radius: 6px;
+            "
+        >
+
+    </div>
+
+
+    <div style="margin-bottom: 24px;">
+
+        <label>
+            نام‌های مستعار
+        </label>
+
+
+        <div
+            id="aliases"
+            style="margin-top: 12px;"
+        >
+
+            {% for alias in airline.aliases %}
+
+            <div
+                class="alias-row"
+                style="
+                    display: flex;
+                    gap: 10px;
+                    margin-bottom: 10px;
+                "
+            >
+
+                <input
+                    type="text"
+                    name="aliases"
+                    aria-label="نام مستعار"
+                    value="{{ alias.alias_name }}"
+                    maxlength="255"
+                    style="
+                        flex: 1;
+                        padding: 10px;
+                        background: #0f172a;
+                        color: #e2e8f0;
+                        border: 1px solid #475569;
+                        border-radius: 6px;
+                    "
+                >
+
+
+                <button
+                    type="button"
+                    class="button button-danger"
+                    onclick="removeAlias(this)"
+                >
+                    حذف
+                </button>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+
+        <button
+            type="button"
+            class="button"
+            onclick="addAlias()"
+            style="margin-top: 8px;"
+        >
+            + افزودن نام مستعار
+        </button>
+
+    </div>
+
+
+    <div>
+
+        <button
+            type="submit"
+            class="button"
+        >
+            {{ 'ثبت ایرلاین' if creating else 'ذخیره تغییرات' }}
+        </button>
+
+
+        <a
+            href="/control/airlines/page"
+            style="
+                margin-right: 8px;
+                color: #cbd5e1;
+            "
+        >
+            انصراف
+        </a>
+
+    </div>
+
+</form>
+
+
+<script>
+
+function addAlias() {
+
+    const container =
+        document.getElementById("aliases");
+
+
+    const row =
+        document.createElement("div");
+
+
+    row.className =
+        "alias-row";
+
+
+    row.style.display =
+        "flex";
+
+    row.style.gap =
+        "10px";
+
+    row.style.marginBottom =
+        "10px";
+
+
+    row.innerHTML = `
+        <input
+            type="text"
+            name="aliases"
+            aria-label="نام مستعار"
+            maxlength="255"
+            style="
+                flex: 1;
+                padding: 10px;
+                background: #0f172a;
+                color: #e2e8f0;
+                border: 1px solid #475569;
+                border-radius: 6px;
+            "
+        >
+
+        <button
+            type="button"
+            class="button button-danger"
+            onclick="removeAlias(this)"
+        >
+            حذف
+        </button>
+    `;
+
+
+    container.appendChild(row);
+}
+
+
+function removeAlias(button) {
+
+    button
+        .parentElement
+        .remove();
+}
+
+</script>
+
+{% endblock %}

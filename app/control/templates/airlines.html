@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}
+    ایرلاین‌ها
+{% endblock %}
+
+
+{% block content %}
+
+<div class="page-header">
+<div>
+<h2>
+    ایرلاین‌ها
+</h2>
+
+<p>
+    مشاهده و مدیریت ایرلاین‌ها و نام‌های مستعار
+</p>
+</div>
+<a class="button" href="/control/airlines/page/new">+ افزودن ایرلاین</a>
+</div>
+
+
+{% if airlines %}
+
+<div class="table-wrap">
+<table>
+
+    <thead>
+
+        <tr>
+
+            <th>
+                ID
+            </th>
+
+            <th>
+                نام رسمی
+            </th>
+
+            <th>
+                نام‌های مستعار
+            </th>
+
+            <th>
+                عملیات
+            </th>
+
+        </tr>
+
+    </thead>
+
+
+    <tbody>
+
+        {% for airline in airlines %}
+
+        <tr>
+
+            <td>
+                {{ airline.id }}
+            </td>
+
+
+            <td>
+
+                <strong>
+                    {{ airline.official_name_fa }}
+                </strong>
+
+            </td>
+
+
+            <td>
+
+                {% if airline.aliases %}
+
+                    {% for alias in airline.aliases %}
+
+                        <code>
+                            {{ alias.alias_name }}
+                        </code>
+
+                        {% if not loop.last %}
+                            ،
+                        {% endif %}
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <span>
+                        بدون نام مستعار
+                    </span>
+
+                {% endif %}
+
+            </td>
+
+
+            <td>
+                <div class="actions">
+                <a class="button button-secondary" href="/control/airlines/page/{{ airline.id }}">مشاهده</a>
+                <a
+                    class="button"
+                    href="/control/airlines/page/{{ airline.id }}/edit"
+                >
+                    ویرایش
+                </a>
+                <a class="button button-danger" href="/control/airlines/page/{{ airline.id }}/delete">حذف</a>
+                </div>
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </tbody>
+
+</table>
+</div>
+
+
+{% else %}
+
+<p class="empty-state">
+    هیچ ایرلاینی ثبت نشده است.
+</p>
+
+{% endif %}
+
+{% endblock %}

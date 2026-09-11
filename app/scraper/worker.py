@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from app.infra.worker_base import run_worker
-from app.extraction.service import extract_alibaba_data
+from app.scraper.service import extract_alibaba_data
 
 logger = logging.getLogger(__name__)
 

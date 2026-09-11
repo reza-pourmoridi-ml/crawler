@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}حذف ایرلاین{% endblock %}
+{% block content %}
+<h2>حذف ایرلاین</h2>
+<p>آیا از حذف «{{ airline.official_name_fa }}» مطمئن هستید؟</p>
+<p class="help-text">با حذف این ایرلاین، {{ airline.aliases | length }} نام مستعار آن هم حذف می‌شود. این عملیات قابل بازگشت نیست.</p>
+<form method="post" action="/control/airlines/page/{{ airline.id }}/delete">
+    <div class="actions">
+        <button type="submit" class="button button-danger">تأیید حذف ایرلاین</button>
+        <a class="button button-secondary" href="/control/airlines/page/{{ airline.id }}">انصراف</a>
+    </div>
+</form>
+{% endblock %}

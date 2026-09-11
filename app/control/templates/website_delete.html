@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}حذف وب‌سایت{% endblock %}
+{% block content %}
+<div class="page-header"><h1>حذف وب‌سایت</h1></div>
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+<p>
+    آیا می‌خواهید وب‌سایت
+    <strong>{{ website.name }}</strong>
+    را حذف کنید؟
+</p>
+<p class="help-text">
+    حذف وب‌سایت قابل بازگشت نیست.
+    اگر کدی به این وب‌سایت وابسته باشد،
+    ابتدا کدهای آن ستون را در صفحات
+    فرودگاه‌ها خالی و ذخیره کنید.
+</p>
+<form method="post" action="/control/websites/page/{{ website.id }}/delete">
+    <div class="actions">
+        <button type="submit" class="button button-danger">تأیید حذف وب‌سایت</button>
+        <a class="button button-secondary" href="/control/websites/page/{{ website.id }}">انصراف</a>
+        <a
+    class="button button-secondary"
+    href="/control/flight-paths/page/domestic"
+>
+    فرودگاه‌های داخلی
+</a>
+
+<a
+    class="button button-secondary"
+    href="/control/flight-paths/page/foreign"
+>
+    فرودگاه‌های خارجی
+</a>
+    </div>
+</form>
+{% endblock %}
