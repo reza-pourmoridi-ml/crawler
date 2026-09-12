@@ -5,10 +5,8 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 
-AUTH_DIR = Path("")
-AUTH_DIR.mkdir(parents=True, exist_ok=True)
-
-AUTH_STATE_FILE = AUTH_DIR / "auth.json"
+AUTH_STATE_FILE = Path(__file__).resolve().parent / "auth.json"
+AUTH_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 LOGIN_URL = "https://www.alibaba.ir/"
 
 START_TIME = time.monotonic()

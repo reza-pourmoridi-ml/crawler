@@ -1,4 +1,4 @@
-"""Shared airports. Category is relative to Iran, not to any website."""
+"""Small initial airport/search-location set."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,29 +8,12 @@ from app.infra.seeders.database import get_seed_session
 
 
 AIRPORTS = [
-    # داخلی
     {"name_fa": "تهران", "category": "domestic"},
     {"name_fa": "مشهد", "category": "domestic"},
     {"name_fa": "شیراز", "category": "domestic"},
-    {"name_fa": "اصفهان", "category": "domestic"},
-    {"name_fa": "تبریز", "category": "domestic"},
-    {"name_fa": "اهواز", "category": "domestic"},
     {"name_fa": "کیش", "category": "domestic"},
-    {"name_fa": "قشم", "category": "domestic"},
-    {"name_fa": "بندرعباس", "category": "domestic"},
-    {"name_fa": "کرمان", "category": "domestic"},
-    {"name_fa": "رشت", "category": "domestic"},
-    {"name_fa": "ساری", "category": "domestic"},
-    {"name_fa": "یزد", "category": "domestic"},
-    {"name_fa": "کرمانشاه", "category": "domestic"},
-    {"name_fa": "ارومیه", "category": "domestic"},
-    {"name_fa": "بوشهر", "category": "domestic"},
-    {"name_fa": "چابهار", "category": "domestic"},
-
-    # خارجی
     {"name_fa": "استانبول", "category": "international"},
     {"name_fa": "دبی", "category": "international"},
-    {"name_fa": "لندن", "category": "international"},
 ]
 
 
@@ -60,7 +43,6 @@ def seed_airports(db: Session | None = None) -> None:
                 )
                 db.flush()
                 created += 1
-
             elif airport.category != item["category"]:
                 airport.category = item["category"]
                 reclassified += 1

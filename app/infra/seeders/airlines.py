@@ -1,21 +1,20 @@
 from sqlalchemy import select
+
 from app.control.airlines.models import Airline, AirlineAlias
 from app.infra.seeders.database import get_seed_session
+
 
 AIRLINES = [
     {
         "official_name_fa": "ایران ایر",
         "aliases": [
             "ایران ایر",
-            "ایران‌ایر",
-            "هما",
             "هواپیمایی جمهوری اسلامی ایران",
-            "Iran Air",
-            "IRAN AIR",
-            "IranAir",
+            "هما",
+            "Islamic Republic of Iran Airlines",
             "Homa",
-            "HOMA",
-            "IR",
+            "Iran Air",
+            "IranAir",
         ],
     },
     {
@@ -24,20 +23,8 @@ AIRLINES = [
             "ماهان",
             "هواپیمایی ماهان",
             "ماهان ایر",
-            "Mahan",
             "Mahan Air",
-            "MAHAN AIR",
-        ],
-    },
-    {
-        "official_name_fa": "ایران ایرتور",
-        "aliases": [
-            "ایران ایرتور",
-            "ایران‌ایرتور",
-            "هواپیمایی ایران ایرتور",
-            "Iran Airtour",
-            "Iran Air Tour",
-            "Iran Airtour Airlines",
+            "Mahan",
         ],
     },
     {
@@ -46,40 +33,50 @@ AIRLINES = [
             "آسمان",
             "هواپیمایی آسمان",
             "ایران آسمان",
-            "Iran Aseman",
+            "Aseman Airlines",
             "Iran Aseman Airlines",
             "Aseman",
-            "Aseman Airlines",
+        ],
+    },
+    {
+        "official_name_fa": "آتا",
+        "aliases": [
+            "آتا",
+            "هواپیمایی آتا",
+            "آتا ایرلاین",
+            "Ata Airlines",
+            "Ata Airline",
+            "Ata",
+        ],
+    },
+    {
+        "official_name_fa": "ایران ایرتور",
+        "aliases": [
+            "ایران ایرتور",
+            "هواپیمایی ایران ایرتور",
+            "هواپیمایی ایران ایرتور چارتر",
+            "Iran Airtour Airline",
+            "Iran Airtour",
+            "Charter Airline",
+            "Airtour",
         ],
     },
     {
         "official_name_fa": "کیش ایر",
         "aliases": [
             "کیش ایر",
-            "کیش‌ایر",
-            "هواپیمایی کیش",
+            "هواپیمایی کیش ایر",
             "Kish Air",
-            "KishAir",
+            "Kish",
         ],
     },
     {
         "official_name_fa": "قشم ایر",
         "aliases": [
             "قشم ایر",
-            "قشم‌ایر",
-            "هواپیمایی قشم",
+            "هواپیمایی قشم ایر",
             "Qeshm Air",
-            "QeshmAir",
-        ],
-    },
-    {
-        "official_name_fa": "زاگرس",
-        "aliases": [
-            "زاگرس",
-            "هواپیمایی زاگرس",
-            "زاگرس ایر",
-            "Zagros",
-            "Zagros Airlines",
+            "Qeshm",
         ],
     },
     {
@@ -87,9 +84,27 @@ AIRLINES = [
         "aliases": [
             "کاسپین",
             "هواپیمایی کاسپین",
-            "کاسپین ایر",
-            "Caspian",
+            "کاسپین ایرلاین",
             "Caspian Airlines",
+            "Caspian",
+        ],
+    },
+    {
+        "official_name_fa": "زاگرس",
+        "aliases": [
+            "زاگرس",
+            "هواپیمایی زاگرس",
+            "زاگرس ایرلاین",
+            "Zagros Airlines",
+            "Zagros",
+        ],
+    },
+    {
+        "official_name_fa": "زاگرس قشم",
+        "aliases": [
+            "زاگرس قشم",
+            "هواپیمایی زاگرس قشم",
+            "Zagros Qeshm",
         ],
     },
     {
@@ -98,29 +113,8 @@ AIRLINES = [
             "تابان",
             "هواپیمایی تابان",
             "تابان ایر",
-            "Taban",
             "Taban Air",
-            "Taban Airlines",
-        ],
-    },
-    {
-        "official_name_fa": "آتا",
-        "aliases": [
-            "آتا",
-            "هواپیمایی آتا",
-            "اتا",
-            "ATA",
-            "ATA Airlines",
-        ],
-    },
-    {
-        "official_name_fa": "وارش",
-        "aliases": [
-            "وارش",
-            "هواپیمایی وارش",
-            "وارش ایر",
-            "Varesh",
-            "Varesh Airlines",
+            "Taban",
         ],
     },
     {
@@ -128,9 +122,62 @@ AIRLINES = [
         "aliases": [
             "سپهران",
             "هواپیمایی سپهران",
-            "سپهران ایر",
-            "Sepehran",
+            "سپهران ایرلاین",
             "Sepehran Airlines",
+            "Sepehran",
+        ],
+    },
+    {
+        "official_name_fa": "وارش",
+        "aliases": [
+            "وارش",
+            "هواپیمایی وارش",
+            "وارش ایرلاین",
+            "Varesh Airlines",
+            "Varesh",
+        ],
+    },
+    {
+        "official_name_fa": "کارون",
+        "aliases": [
+            "کارون",
+            "هواپیمایی کارون",
+            "کارون ایرلاین",
+            "Karun Airlines",
+            "Karun",
+            "هواپیمایی نفت",
+            "نفت ایر",
+            "نفت",
+            "Naft Air",
+            "Naft",
+        ],
+    },
+    {
+        "official_name_fa": "چابهار",
+        "aliases": [
+            "چابهار",
+            "هواپیمایی چابهار",
+            "چابهار ایرلاین",
+            "Chabahar Airlines",
+            "Chabahar",
+        ],
+    },
+    {
+        "official_name_fa": "فلای پرشیا",
+        "aliases": [
+            "فلای پرشیا",
+            "هواپیمایی فلای پرشیا",
+            "Fly Persia",
+            "FlyPersia",
+        ],
+    },
+    {
+        "official_name_fa": "آوا ایر",
+        "aliases": [
+            "آوا ایر",
+            "هواپیمایی آوا ایر",
+            "Ava Air",
+            "Ava",
         ],
     },
     {
@@ -139,18 +186,18 @@ AIRLINES = [
             "معراج",
             "هواپیمایی معراج",
             "معراج ایر",
-            "Meraj",
             "Meraj Airlines",
+            "Meraj",
         ],
     },
     {
-        "official_name_fa": "کارون",
+        "official_name_fa": "ساها",
         "aliases": [
-            "کارون",
-            "هواپیمایی کارون",
-            "کارون ایر",
-            "Karun",
-            "Karun Airlines",
+            "ساها",
+            "هواپیمایی ساها",
+            "ساها ایر",
+            "Saha Airlines",
+            "Saha",
         ],
     },
     {
@@ -159,8 +206,195 @@ AIRLINES = [
             "پویا",
             "هواپیمایی پویا",
             "پویا ایر",
-            "Pouya",
             "Pouya Air",
+            "Pouya",
+        ],
+    },
+    {
+        "official_name_fa": "پارس ایر",
+        "aliases": [
+            "پارس ایر",
+            "هواپیمایی پارس ایر",
+            "Pars Air",
+            "Pars",
+        ],
+    },
+    {
+        "official_name_fa": "یزد ایر",
+        "aliases": [
+            "یزد ایر",
+            "هواپیمایی یزد ایر",
+            "Yazd Air",
+            "Yazd",
+        ],
+    },
+    {
+        "official_name_fa": "ایر وان",
+        "aliases": [
+            "ایر وان",
+            "هواپیمایی ایر وان",
+            "Air One",
+            "AirOne",
+        ],
+    },
+    {
+        "official_name_fa": "آساجت",
+        "aliases": [
+            "آساجت",
+            "هواپیمایی آساجت",
+            "Asa Jet",
+            "AsaJet",
+        ],
+    },
+    {
+        "official_name_fa": "رایمون",
+        "aliases": [
+            "رایمون",
+            "هواپیمایی رایمون",
+            "رایمون ایر",
+            "Raymon Air",
+            "Raymon",
+        ],
+    },
+    {
+        "official_name_fa": "مهر",
+        "aliases": [
+            "مهر",
+            "هواپیمایی مهر",
+            "مهر ایر",
+            "Mehr Airlines",
+            "Mehr",
+        ],
+    },
+    {
+        "official_name_fa": "اطلس",
+        "aliases": [
+            "اطلس",
+            "هواپیمایی اطلس",
+            "اطلس ایر",
+            "Atlas Air",
+            "Atlas",
+        ],
+    },
+    {
+        "official_name_fa": "فلای کیش",
+        "aliases": [
+            "فلای کیش",
+            "هواپیمایی فلای کیش",
+            "Fly Kish",
+        ],
+    },
+    {
+        "official_name_fa": "فجر",
+        "aliases": [
+            "فجر",
+            "هواپیمایی فجر",
+            "فجر ایر",
+            "Fajr Air",
+            "Fajr",
+        ],
+    },
+    {
+        "official_name_fa": "آریا",
+        "aliases": [
+            "آریا",
+            "هواپیمایی آریا",
+            "آریا ایر",
+            "Aria Air",
+            "Aria",
+        ],
+    },
+    {
+        "official_name_fa": "یاس",
+        "aliases": [
+            "یاس",
+            "هواپیمایی یاس",
+            "یاس ایر",
+            "Yas Air",
+            "Yas",
+        ],
+    },
+    {
+        "official_name_fa": "سورینت",
+        "aliases": [
+            "سورینت",
+            "هواپیمایی سورینت",
+            "سورینت ایر",
+            "Surinet Air",
+            "Surinet",
+        ],
+    },
+    {
+        "official_name_fa": "آرمان",
+        "aliases": [
+            "آرمان",
+            "هواپیمایی آرمان",
+            "آرمان ایر",
+            "Arman Air",
+            "Arman",
+        ],
+    },
+    {
+        "official_name_fa": "سیمرغ",
+        "aliases": [
+            "سیمرغ",
+            "هواپیمایی سیمرغ",
+            "سیمرغ ایر",
+            "Simorgh Air",
+            "Simorgh",
+        ],
+    },
+    {
+        "official_name_fa": "پارسیان",
+        "aliases": [
+            "پارسیان",
+            "هواپیمایی پارسیان",
+            "پارسیان ایر",
+            "Parsian Air",
+            "Parsian",
+        ],
+    },
+    {
+        "official_name_fa": "نسیم",
+        "aliases": [
+            "نسیم",
+            "هواپیمایی نسیم",
+            "خطوط هواپیمایی نسیم",
+            "Nasim Airlines",
+            "Nasim",
+        ],
+    },
+    {
+        "official_name_fa": "ایران ایر شارجه",
+        "aliases": [
+            "ایران ایر شارجه",
+            "هواپیمایی ایران ایر شارجه",
+            "CPN",
+        ],
+    },
+    {
+        "official_name_fa": "باری",
+        "aliases": [
+            "باری",
+            "هواپیمایی باری",
+            "Cargo Airline",
+        ],
+    },
+    {
+        "official_name_fa": "سروش",
+        "aliases": [
+            "سروش",
+            "soroush",
+        ],
+    },
+    {
+        "official_name_fa": "اختصاصی/خصوصی",
+        "aliases": [
+            "اختصاصی",
+            "خصوصی",
+            "هواپیمایی اختصاصی",
+            "هواپیمایی خصوصی",
+            "Private Airline",
         ],
     },
 ]
@@ -181,9 +415,8 @@ def seed_airlines() -> None:
 
             if airline is None:
                 airline = Airline(
-                    official_name_fa=official_name,
+                    official_name_fa=official_name
                 )
-
                 db.add(airline)
                 db.flush()
 
@@ -196,18 +429,22 @@ def seed_airlines() -> None:
             )
 
             for alias_name in airline_data["aliases"]:
-                if alias_name not in existing_aliases:
-                    db.add(
-                        AirlineAlias(
-                            airline_id=airline.id,
-                            alias_name=alias_name,
-                        )
+                if alias_name in existing_aliases:
+                    continue
+
+                db.add(
+                    AirlineAlias(
+                        airline_id=airline.id,
+                        alias_name=alias_name,
                     )
+                )
+
+                existing_aliases.add(alias_name)
 
         db.commit()
 
         print(
-            f"Airline seeding completed successfully. "
+            "Airline seeding completed successfully. "
             f"Processed {len(AIRLINES)} airlines."
         )
 

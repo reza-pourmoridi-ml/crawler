@@ -6,6 +6,12 @@ from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 HARD_PAUSE_LOAD_TIME = 20
 
+AUTH_STATE_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "auth"
+    / "auth.json"
+)
+
 def find_chromium_executable():
     candidates = [
         shutil.which("chromium-browser"),
@@ -923,11 +929,9 @@ async def scrape_url(
     )
     network_responses = []
     network_requests = []
-    auth_state_file = Path("auth/auth.json")
     # executable_path = find_chromium_executable()
     # print(f"[*] Using Chromium executable: {executable_path}")
-    has_auth_file = auth_state_file.exists()
-
+    has_auth_file = AUTH_STATE_FILE.is_file()
     async with async_playwright() as p:
         context_args = {
             "user_agent": (
@@ -942,8 +946,10 @@ async def scrape_url(
             "bypass_csp": True,
             "ignore_https_errors": True,
         }
-        if has_auth_file and "alibaba.ir" in target_url:
-            context_args["storage_state"] = str(auth_state_file)
+        if has_auth_file:
+            context_args["storage_state"] = str(AUTH_STATE_FILE)
+        else:
+            print(f"[!] Auth state not found: {AUTH_STATE_FILE}")
 
         browser = await p.chromium.launch(
             # executable_path=executable_path,
@@ -1001,16 +1007,16 @@ async def scrape_url(
             lambda res: asyncio.create_task(capture_network(res)),
         )
 
-        if "alibaba.ir" in target_url:
-            try:
-                await page.goto(
-                    "https://www.alibaba.ir",
-                    wait_until="domcontentloaded",
-                    timeout=20000,
-                )
-                await human_pause(page, 1000, 2000)
-            except Exception:
-                pass
+        # if "alibaba.ir" in target_url:
+        #     try:
+        #         await page.goto(
+        #             "https://www.alibaba.ir",
+        #             wait_until="domcontentloaded",
+        #             timeout=20000,
+        #         )
+        #         await human_pause(page, 1000, 2000)
+        #     except Exception:
+        #         pass
 
         print(f"[*] Navigating to: {target_url}")
         try:
@@ -1080,14 +1086,18 @@ async def scrape_url(
             encoding="utf-8",
         )
 
-
-        if "alibaba.ir" in target_url and has_auth_file:
+        if has_auth_file:
             try:
                 await context.storage_state(
-                    path=str(auth_state_file)
+                    path=str(AUTH_STATE_FILE),
+                    indexed_db=True,
                 )
-            except Exception:
-                pass
+            except TypeError:
+                await context.storage_state(
+                    path=str(AUTH_STATE_FILE),
+                )
+            except Exception as exc:
+                print(f"[!] Failed to update auth state: {exc}")
 
         await browser.close()
         return {
