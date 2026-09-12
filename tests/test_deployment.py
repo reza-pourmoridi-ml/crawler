@@ -1,5 +1,7 @@
 import json
 import logging
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -12,6 +14,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeploymentConfigTests(unittest.TestCase):
+    def test_extractor_registers_all_related_sqlalchemy_models(self):
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import app.extractor.repo; "
+                    "from sqlalchemy.orm import configure_mappers; "
+                    "configure_mappers()"
+                ),
+            ],
+            cwd=ROOT,
+            check=True,
+        )
+
     def test_each_long_running_role_has_exactly_one_replica(self):
         compose = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
         for role in ("control", "orchestrator", "scraper", "learn", "extractor", "ollama"):
@@ -26,6 +43,19 @@ class DeploymentConfigTests(unittest.TestCase):
             if name == "model-pull":
                 continue
             self.assertNotIn("model-pull", service.get("depends_on", {}))
+
+    def test_pipeline_artifacts_use_ignored_host_storage(self):
+        compose = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
+        self.assertNotIn("crawler_storage", compose["volumes"])
+        for role in ("orchestrator", "scraper", "learn", "extractor"):
+            mounts = compose["services"][role]["volumes"]
+            data_mount = next(mount for mount in mounts if mount["target"] == "/data")
+            with self.subTest(role=role):
+                self.assertEqual(data_mount["type"], "bind")
+                self.assertIn("STORAGE_HOST_PATH", data_mount["source"])
+
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("storage/*", gitignore)
 
     def test_local_model_is_three_billion_parameter_variant(self):
         local_env = (ROOT / ".env.docker.example").read_text(encoding="utf-8")

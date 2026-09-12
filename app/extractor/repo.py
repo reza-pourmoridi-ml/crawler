@@ -4,6 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.control.airlines.models import Airline
+from app.control.flight_paths.models import FlightPath  # noqa: F401 - registers Airport relationship
 from app.control.search_box.models import (
     SearchAirlinePrice,
     SearchLowestPrice,

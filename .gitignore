@@ -28,7 +28,7 @@ env/
 *.swo
 
 # Runtime storage
-storage/*
+storage/**
 !storage/README.md
 !storage/raw/
 !storage/raw/.gitkeep
@@ -38,6 +38,8 @@ storage/*
 !storage/extracted/.gitkeep
 !storage/temp/
 !storage/temp/.gitkeep
+!storage/auth/
+!storage/auth/.gitkeep
 
 # R&D data and generated evaluation results
 alibaba_raw_data/

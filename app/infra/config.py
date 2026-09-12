@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5-coder:3b"
     ollama_timeout: int = 360
     final_validation_max_html_chars: int = 100000
-    auth_state_file: str = "app/auth/auth.json"
+    auth_state_file: str = "storage/auth/auth.json"
     control_host: str = "0.0.0.0"
     control_port: int = Field(default=8000, ge=1, le=65535)
     log_level: str = "INFO"

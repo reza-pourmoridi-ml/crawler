@@ -98,6 +98,11 @@ profile دستی انجام می‌شود. دستورهای کامل در
 
 همهٔ پردازش‌ها باید به همان PostgreSQL و مسیر مشترک `STORAGE_ROOT` دسترسی داشته باشند. در اجرای چندماشینی/کانتینری، storage را در همان مسیر mount کنید و `OLLAMA_HOST` را برای worker learn تنظیم کنید. نام snapshot برای هر crawl یکتاست تا crawl بعدی ورودی learn را بازنویسی نکند:
 
+در Docker، پوشهٔ میزبان `./storage` مستقیماً روی `/data` کانتینرها mount می‌شود؛
+بنابراین همهٔ artifactها کنار پروژه و زیر یک ریشه هستند، ولی محتوای runtime آن
+با `.gitignore` وارد سورس کنترل‌شده نمی‌شود. PostgreSQL و مدل‌های Ollama عمداً
+volume مستقل دارند.
+
 ```text
 storage/raw/website_<id>/<domestic|international>/request_<id>/<snapshot_id>/page.html
 storage/learned/website_<id>/<domestic|international>/tickets.json

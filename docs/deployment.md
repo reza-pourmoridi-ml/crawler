@@ -12,6 +12,11 @@
 `qwen2.5-coder:14b` را مشخص می‌کند. volume مدل Ollama پایدار است؛ برای حفظ آن
 از `docker compose down -v` استفاده نکنید.
 
+تمام artifactهای برنامه روی میزبان زیر `${STORAGE_HOST_PATH:-./storage}` قرار
+می‌گیرند و داخل کانتینرها در `/data` دیده می‌شوند. زیرپوشه‌های `raw`، `learned`،
+`extracted` و `temp` بین orchestrator و هر سه worker مشترک‌اند. محتوای آن‌ها در
+`.gitignore` است و هنگام clone/pull سورس وارد Git نمی‌شود.
+
 ## تست Ollama روی میزبان، پیش از Docker
 
 ترمینال اول:
@@ -47,7 +52,9 @@ cp .env.docker.example .env.docker
 
 رمز PostgreSQL را در هر دو متغیر `POSTGRES_PASSWORD` و `DATABASE_URL` یکسان
 کنید. اگر رمز دارای نویسه‌های رزروشدهٔ URL است، آن را در `DATABASE_URL`
-percent-encode کنید. سپس:
+percent-encode کنید. `STORAGE_HOST_PATH=./storage` را نگه دارید و روی Linux
+مقادیر `APP_UID` و `APP_GID` را مطابق خروجی `id -u` و `id -g` قرار دهید؛ روی
+این لپ‌تاپ هر دو `1000` هستند. سپس:
 
 ```bash
 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml config --quiet
@@ -132,7 +139,7 @@ cookie، JWT، ایمیل و شمارهٔ موبایل را redact می‌کنن
 cp .env.production.example .env.production
 ```
 
-رمزها، مسیر فایل auth و منابع server را بررسی کنید. override فعلی برای ماشینی
+رمزها، مسیر storage و منابع server را بررسی کنید. override فعلی برای ماشینی
 با حداقل حدود 32GB RAM طراحی شده و تا 20GB RAM به Ollama می‌دهد. برای NVIDIA،
 NVIDIA Container Toolkit را نصب و فایل GPU را نیز به همهٔ دستورها اضافه کنید.
 
@@ -171,7 +178,7 @@ docker compose --env-file .env.production -f compose.yaml -f compose.production.
   برنامه می‌شود.
 - برای توقف بدون حذف داده: `docker compose ... down`. گزینهٔ `-v` دیتابیس،
   artifactها و مدل‌های دانلودشده را حذف می‌کند.
-- از volume دیتابیس و `crawler_storage` پشتیبان دوره‌ای بگیرید. برای PostgreSQL
-  می‌توان از `pg_dump` داخل سرویس `postgres` استفاده کرد.
-- فایل auth از میزبان bind می‌شود و داخل image قرار نمی‌گیرد. مقدار
-  `AUTH_STATE_HOST_PATH` باید پیش از start به یک فایل موجود اشاره کند.
+- از volume دیتابیس و پوشهٔ میزبان `storage/` پشتیبان دوره‌ای بگیرید. برای
+  PostgreSQL می‌توان از `pg_dump` داخل سرویس `postgres` استفاده کرد.
+- فایل auth در `storage/auth/auth.json` قرار می‌گیرد و همراه همان storage مشترک
+  mount می‌شود؛ داخل image قرار نمی‌گیرد.
