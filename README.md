@@ -86,7 +86,7 @@ Ollama را به‌صورت سرویس جدا اجرا کنید. سپس هر د�
 ../.venv/bin/python -m app.extractor
 ```
 
-workerهای learn، scraper و extractor هر job را در پردازش فرزند اجرا می‌کنند تا timeout واقعاً آن کار را متوقف کند. پیش‌فرض timeout به‌ترتیب شش ساعت، پانزده دقیقه و پنج دقیقه است. تعداد workerهای learn را متناسب با ظرفیت Ollama تعیین کنید؛ تعداد workerهای extractor مستقل است.
+workerهای learn، scraper و extractor هر job را در پردازش فرزند اجرا می‌کنند تا timeout واقعاً آن کار را متوقف کند. Learn تا وقتی در extraction یا validation پیشرفت می‌کند ادامه می‌یابد؛ پس از شش ساعت بدون پیشرفت متوقف می‌شود و یک سقف نهایی ۳۰ ساعته دارد. timeoutهای ثابت scraper و extractor به‌ترتیب پانزده و پنج دقیقه‌اند. تعداد workerهای learn را متناسب با ظرفیت Ollama تعیین کنید؛ تعداد workerهای extractor مستقل است.
 
 ## اجرای production با Docker
 
@@ -146,7 +146,8 @@ orchestrator در شروع و سپس هر `CLEANUP_INTERVAL_SECONDS`، پیش‌
 | `JOB_RETENTION_SECONDS` | ۷ روز | فاصله از پایان job برای حذف تاریخچهٔ غیرضروری |
 | `TEMPORARY_RETENTION_SECONDS` | ۲۴ ساعت | عمر فایل‌های موقت رهاشده پس از crash |
 | `PENDING_JOB_TIMEOUT` | ۲۴ ساعت | حداکثر انتظار از زمان سررسید job بدون دریافت توسط worker |
-| `LEARN_JOB_TIMEOUT` | ۶ ساعت | مهلت هر تلاش learn |
+| `LEARN_JOB_TIMEOUT` | ۶ ساعت | حداکثر زمان بدون progress در هر تلاش learn |
+| `LEARN_HARD_TIMEOUT` | ۳۰ ساعت | سقف نهایی هر تلاش learn، حتی در صورت داشتن progress |
 | `SCRAPE_JOB_TIMEOUT` | ۱۵ دقیقه | مهلت هر تلاش scrape |
 | `EXTRACTOR_JOB_TIMEOUT` | ۵ دقیقه | مهلت هر تلاش extractor |
 
@@ -156,6 +157,6 @@ orchestrator در شروع و سپس هر `CLEANUP_INTERVAL_SECONDS`، پیش‌
 
 هر تلاش worker پوشهٔ موقت اختصاصی دارد؛ فایل‌های موقت Python، Node و مرورگر به آن هدایت می‌شوند و در پایان یا timeout پاک می‌شوند. پردازش‌های فرزند روی Linux در یک گروه مستقل اجرا می‌شوند تا هنگام timeout، لغو یا از بین رفتن worker، پردازش‌های باقی‌مانده نیز متوقف شوند. پس از crash شدید، پاک‌سازی دوره‌ای پوشه‌های رهاشده را جمع می‌کند.
 
-heartbeat فقط تا deadline ثابت هر تلاش قابل تمدید است و یک دقیقه مهلت برای ثبت پایان در نظر گرفته می‌شود. پس از انقضای قفل یا deadline، تلاش با backoff محدود تکرار می‌شود و با رسیدن به `max_attempts` به وضعیت نهایی `failed` با `outcome=error` می‌رسد. شمارهٔ تلاش در تمدید قفل و ثبت نتیجه کنترل می‌شود تا worker قدیمی نتواند وضعیت تلاش جدید را تغییر دهد. job آینده تا زمان سررسیدش مشمول timeout انتظار نیست.
+heartbeat فقط تا hard deadline هر تلاش قابل تمدید است و یک دقیقه مهلت برای ثبت پایان در نظر گرفته می‌شود. در Learn، پیشرفت واقعی هنگام عبور از هر واحد extraction یا validation مهلت بی‌پیشرفتی را تازه می‌کند؛ این موضوع timeout مستقل هر درخواست Ollama را تغییر نمی‌دهد. پس از انقضای قفل یا deadline، تلاش با backoff محدود تکرار می‌شود و با رسیدن به `max_attempts` به وضعیت نهایی `failed` با `outcome=error` می‌رسد. شمارهٔ تلاش در تمدید قفل و ثبت نتیجه کنترل می‌شود تا worker قدیمی نتواند وضعیت تلاش جدید را تغییر دهد. job آینده تا زمان سررسیدش مشمول timeout انتظار نیست.
 
 تست‌های PostgreSQL فقط با `CRAWLER_TEST_DATABASE_URL` اجرا می‌شوند؛ این متغیر باید به دیتابیس آزمایشی اشاره کند. تست‌ها schemaهای مجزا می‌سازند و حذف می‌کنند. بدون این متغیر، تست‌های نیازمند PostgreSQL skip می‌شوند و تست‌های فایل و پردازش اجرا می‌شوند.

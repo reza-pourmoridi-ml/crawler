@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     storage_root: str = "storage"
     learn_max_new_templates: int = Field(default=20, ge=1)
     learn_max_templates: int = Field(default=250, ge=1)
-    learn_job_timeout: int = 6 * 60 * 60
+    learn_job_timeout: int = Field(default=6 * 60 * 60, ge=1)
+    learn_hard_timeout: int = Field(default=30 * 60 * 60, ge=1)
     extractor_job_timeout: int = 300
     scrape_job_timeout: int = Field(default=15 * 60, ge=1)
     pending_job_timeout: int = Field(default=24 * 60 * 60, ge=1)

@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}مانیتور backend{% endblock %}
+
+{% block content %}
+<style>
+    .monitor-head { display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap; }
+    .live-dot { width:10px; height:10px; border-radius:50%; background:#22c55e; display:inline-block; margin-left:7px; }
+    .monitor-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:18px 0; }
+    .monitor-card { background:#0f172a; border:1px solid #334155; border-radius:9px; padding:15px; min-width:0; }
+    .monitor-card h3 { margin:0 0 8px; font-size:1rem; }
+    .metric { font-size:1.7rem; font-weight:750; direction:ltr; text-align:right; }
+    .subtle { color:#94a3b8; font-size:.88rem; overflow-wrap:anywhere; }
+    .state { display:inline-block; border-radius:999px; padding:2px 9px; font-size:.82rem; font-weight:700; }
+    .state-ok,.state-working { background:#14532d; color:#bbf7d0; }
+    .state-warning,.state-queued { background:#713f12; color:#fef3c7; }
+    .state-critical { background:#7f1d1d; color:#fecaca; }
+    .state-idle,.state-unknown { background:#334155; color:#cbd5e1; }
+    .monitor-section { margin-top:28px; }
+    .monitor-section h2 { margin-bottom:8px; }
+    .monitor-table { min-width:760px; font-size:.9rem; }
+    .monitor-table td,.monitor-table th { white-space:nowrap; padding:8px; }
+    .monitor-error { display:none; }
+    .component-detail { margin-top:6px; min-height:2.8em; }
+    @media (max-width:900px) { .monitor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:520px) { .monitor-grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="monitor-head">
+    <div>
+        <h1>مانیتور backend</h1>
+        <p class="help-text">نمای read-only از سلامت اجزا و وضعیت لحظه‌ای pipeline</p>
+    </div>
+    <div class="subtle"><span class="live-dot"></span><span id="refresh-state">در حال دریافت…</span></div>
+</div>
+
+<div id="monitor-error" class="error monitor-error"></div>
+
+<div class="monitor-grid">
+    <div class="monitor-card"><h3>سلامت کلی</h3><div id="overall"></div></div>
+    <div class="monitor-card"><h3>در حال اجرا</h3><div class="metric" id="count-running">—</div></div>
+    <div class="monitor-card"><h3>آماده در صف</h3><div class="metric" id="count-ready">—</div></div>
+    <div class="monitor-card"><h3>خطای نهایی</h3><div class="metric" id="count-errors">—</div></div>
+</div>
+
+<section class="monitor-section">
+    <h2>اجزای زیرساخت</h2>
+    <div class="monitor-grid" id="components"></div>
+</section>
+
+<section class="monitor-section">
+    <h2>workerها</h2>
+    <p class="help-text">سلامت worker از قفل و حرکت صف استنباط می‌شود؛ حالت بیکار به معنی خرابی نیست.</p>
+    <div class="monitor-grid" id="stages"></div>
+</section>
+
+<section class="monitor-section">
+    <h2>کارهای در حال اجرا</h2>
+    <div class="table-wrap"><table class="monitor-table"><thead><tr>
+        <th>Job</th><th>مرحله</th><th>درخواست / وب‌سایت</th><th>تلاش</th><th>Deadline</th><th>عمر</th>
+    </tr></thead><tbody id="active-jobs"></tbody></table></div>
+</section>
+
+<section class="monitor-section">
+    <h2>صف آماده</h2>
+    <div class="table-wrap"><table class="monitor-table"><thead><tr>
+        <th>Job</th><th>مرحله</th><th>درخواست / وب‌سایت</th><th>تلاش</th><th>زمان اجرا</th><th>مدت انتظار</th>
+    </tr></thead><tbody id="ready-jobs"></tbody></table></div>
+</section>
+
+<section class="monitor-section">
+    <h2>خطاهای نهایی اخیر</h2>
+    <div class="table-wrap"><table class="monitor-table"><thead><tr>
+        <th>Job</th><th>مرحله</th><th>درخواست / وب‌سایت</th><th>تلاش</th><th>زمان پایان</th><th>وضعیت</th>
+    </tr></thead><tbody id="failed-jobs"></tbody></table></div>
+</section>
+
+<section class="monitor-section">
+    <h2>آخرین اجراهای موفق</h2>
+    <div class="table-wrap"><table class="monitor-table"><thead><tr>
+        <th>Job</th><th>مرحله</th><th>درخواست / وب‌سایت</th><th>تلاش</th><th>زمان پایان</th><th>نتیجه</th>
+    </tr></thead><tbody id="success-jobs"></tbody></table></div>
+</section>
+
+<script>
+(() => {
+    const labels = {ok:'سالم', working:'در حال کار', warning:'نیازمند توجه', critical:'خراب', queued:'در صف', idle:'بیکار', unknown:'نامشخص'};
+    const esc = value => String(value ?? '—').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const badge = state => `<span class="state state-${esc(state)}">${esc(labels[state] || state)}</span>`;
+    const time = value => value ? new Intl.DateTimeFormat('fa-IR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
+    const duration = seconds => {
+        if (seconds === null || seconds === undefined) return '—';
+        if (seconds < 60) return `${seconds} ثانیه`;
+        if (seconds < 3600) return `${Math.floor(seconds/60)} دقیقه`;
+        return `${Math.floor(seconds/3600)} ساعت و ${Math.floor((seconds%3600)/60)} دقیقه`;
+    };
+    const bytes = value => value === null || value === undefined ? '—' : `${(value/1073741824).toFixed(1)} GB`;
+    const endpoint = '/control/monitor/status';
+
+    function jobRows(id, jobs, success) {
+        const body = document.getElementById(id);
+        if (!jobs.length) {
+            body.innerHTML = '<tr><td colspan="6" class="subtle">موردی وجود ندارد.</td></tr>';
+            return;
+        }
+        body.innerHTML = jobs.map(job => `<tr>
+            <td><code>#${esc(job.id)}</code></td><td>${esc(job.label)}</td>
+            <td>درخواست ${esc(job.search_request_id)} / سایت ${esc(job.website_id)}</td>
+            <td>${esc(job.attempt)} از ${esc(job.max_attempts)}</td>
+            <td>${time(success === 'active' ? job.deadline_at : success === 'ready' ? job.run_at : job.finished_at)}</td>
+            <td>${success === true ? badge('ok') : success === false ? badge('critical') : duration(job.age_seconds)}</td>
+        </tr>`).join('');
+    }
+
+    function render(data) {
+        document.getElementById('overall').innerHTML = badge(data.overall);
+        document.getElementById('count-running').textContent = data.counts.running;
+        document.getElementById('count-ready').textContent = data.counts.ready;
+        document.getElementById('count-errors').textContent = data.counts.final_errors;
+
+        const componentInfo = {
+            database: ['PostgreSQL', c => `Latency: ${c.latency_ms ?? '—'} ms`],
+            ollama: ['Ollama', c => `مدل: ${c.configured_model} | Loaded: ${c.loaded_models.map(x => x.name).join(', ') || 'خیر'}`],
+            storage: ['Storage', c => `فضای آزاد: ${bytes(c.free_bytes)} | مصرف دیسک: ${c.used_percent ?? '—'}٪`],
+            orchestrator: ['Orchestrator', c => `آخرین نشانهٔ فعالیت: ${time(c.last_activity_at)}`]
+        };
+        document.getElementById('components').innerHTML = Object.entries(componentInfo).map(([key,[title,detail]]) => {
+            const item = data.components[key];
+            return `<div class="monitor-card"><h3>${title} ${badge(item.state)}</h3><div>${esc(item.message)}</div><div class="subtle component-detail">${esc(detail(item))}</div></div>`;
+        }).join('');
+
+        document.getElementById('stages').innerHTML = data.stages.map(stage => `<div class="monitor-card">
+            <h3>${esc(stage.label)} ${badge(stage.state)}</h3><div>${esc(stage.message)}</div>
+            <div class="subtle component-detail">اجرا: ${stage.running} | آماده: ${stage.ready} | retry: ${stage.scheduled}<br>آخرین موفقیت: ${time(stage.last_success_at)}</div>
+        </div>`).join('');
+
+        jobRows('active-jobs', data.active_jobs, 'active');
+        jobRows('ready-jobs', data.ready_jobs, 'ready');
+        jobRows('failed-jobs', data.recent_failures, false);
+        jobRows('success-jobs', data.recent_successes, true);
+        document.getElementById('refresh-state').textContent = `آخرین بروزرسانی: ${time(data.generated_at)} — هر ۵ ثانیه`;
+        document.getElementById('monitor-error').style.display = 'none';
+    }
+
+    async function refresh() {
+        try {
+            const response = await fetch(endpoint, {headers:{Accept:'application/json'}, cache:'no-store'});
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            render(await response.json());
+        } catch (error) {
+            const box = document.getElementById('monitor-error');
+            box.textContent = `دریافت وضعیت مانیتور ناموفق بود: ${error.message}`;
+            box.style.display = 'block';
+            document.getElementById('refresh-state').textContent = 'ارتباط مانیتور قطع است؛ تلاش مجدد…';
+        }
+    }
+
+    refresh();
+    setInterval(() => { if (!document.hidden) refresh(); }, 5000);
+})();
+</script>
+{% endblock %}

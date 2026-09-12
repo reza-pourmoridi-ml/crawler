@@ -18,7 +18,6 @@ except ImportError:  # Progress output is optional in minimal worker environment
         return iterable
 
 from app.infra.config import settings
-
 OLLAMA_BASE_URL = settings.ollama_host.rstrip("/")
 OLLAMA_API_URL = f"{OLLAMA_BASE_URL}/api/generate"
 MODEL_NAME = settings.ollama_model

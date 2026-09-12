@@ -15,7 +15,7 @@ def utc(value: datetime) -> datetime:
 
 def job_timeout(job_type: str) -> int:
     return {
-        'learn': settings.learn_job_timeout,
+        'learn': settings.learn_hard_timeout,
         'scrape': settings.scrape_job_timeout,
         'scrap': settings.scrape_job_timeout,
         'extractor': settings.extractor_job_timeout,

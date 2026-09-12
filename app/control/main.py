@@ -19,6 +19,10 @@ from app.control.search_box.api import (
     router as search_box_router,
 )
 
+from app.monitor.api import (
+    router as monitor_router,
+)
+
 
 app = FastAPI(
     title="Crawler Application"
@@ -55,6 +59,10 @@ app.include_router(
 
 app.include_router(
     search_box_router
+)
+
+app.include_router(
+    monitor_router
 )
 
 

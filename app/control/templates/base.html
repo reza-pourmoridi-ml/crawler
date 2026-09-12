@@ -405,6 +405,9 @@
         <a href="/control/dashboard" {% if request.url.path == '/control/dashboard' %}aria-current="page"{% endif %}>
             داشبورد
         </a>
+        <a href="/control/monitor/page" {% if request.url.path.startswith('/control/monitor') %}aria-current="page"{% endif %}>
+            مانیتور سیستم
+        </a>
         <a
             href="/control/search-box/page"
 

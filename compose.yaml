@@ -15,6 +15,8 @@ x-app-environment: &app-environment
   OLLAMA_HOST: http://ollama:11434
   OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:3b}
   OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-360}
+  LEARN_JOB_TIMEOUT: ${LEARN_JOB_TIMEOUT:-21600}
+  LEARN_HARD_TIMEOUT: ${LEARN_HARD_TIMEOUT:-108000}
   TZ: Asia/Tehran
 
 x-storage-bind: &storage-bind
@@ -203,13 +205,16 @@ services:
       CONTROL_PORT: 8000
     ports:
       - "127.0.0.1:${CONTROL_PUBLISHED_PORT:-8000}:8000"
+    volumes:
+      - <<: *storage-bind
+        read_only: true
     depends_on:
       migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-m", "app.infra.health", "control"]
       interval: 15s
-      timeout: 5s
+      timeout: 15s
       retries: 5
       start_period: 15s
     deploy:

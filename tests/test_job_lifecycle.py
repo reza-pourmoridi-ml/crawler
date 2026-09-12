@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.infra import queue
 from app.infra.config import settings
+from app.infra.progress import report_progress
 from app.infra.storage import snapshot_directory
 from app.orchestration.jobs import get_pipeline_jobs, plan_followups
 from app.orchestration.maintenance import cleanup_runtime_data
@@ -33,6 +34,18 @@ def leave_scratch_and_wait(payload):
                       payload['marker']])
     Path(payload['started']).write_text(str(work))
     time.sleep(30)
+
+
+def progress_then_finish(payload):
+    deadline = time.monotonic() + payload['duration']
+    while time.monotonic() < deadline:
+        report_progress()
+        time.sleep(payload['interval'])
+    Path(payload['finished']).write_text('done')
+
+
+def wait_without_progress(payload):
+    time.sleep(payload['duration'])
 
 
 class WorkerCleanupTests(unittest.TestCase):
@@ -58,6 +71,37 @@ class WorkerCleanupTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'lease lost'):
                 run_handler_in_process(leave_scratch_and_wait, {}, 60, cancel_events=(event,))
             self.assertEqual(list((Path(directory) / 'temp').iterdir()), [])
+
+    def test_progress_allows_handler_to_run_past_idle_timeout(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(settings, 'storage_root', directory):
+            finished = Path(directory) / 'finished'
+            run_handler_in_process(
+                progress_then_finish,
+                {'duration': 2.5, 'interval': .1, 'finished': str(finished)},
+                timeout=8,
+                idle_timeout=2,
+            )
+            self.assertEqual(finished.read_text(), 'done')
+
+    def test_missing_progress_triggers_idle_timeout(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(settings, 'storage_root', directory):
+            with self.assertRaisesRegex(TimeoutError, 'no progress for 2s'):
+                run_handler_in_process(
+                    wait_without_progress,
+                    {'duration': 10},
+                    timeout=8,
+                    idle_timeout=2,
+                )
+
+    def test_hard_timeout_wins_even_with_continuous_progress(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(settings, 'storage_root', directory):
+            with self.assertRaisesRegex(TimeoutError, 'exceeded 2s'):
+                run_handler_in_process(
+                    progress_then_finish,
+                    {'duration': 10, 'interval': .1, 'finished': str(Path(directory) / 'finished')},
+                    timeout=2,
+                    idle_timeout=4,
+                )
 
 
 @unittest.skipUnless(os.getenv('CRAWLER_TEST_DATABASE_URL'), 'Set CRAWLER_TEST_DATABASE_URL to an isolated PostgreSQL database')
@@ -179,7 +223,7 @@ class JobLifecycleTests(unittest.TestCase):
         queue.sweep_stuck_jobs()
         saved = self.get(job_id)
         self.assertEqual(saved.status, 'running')
-        self.assertGreater(saved.deadline_at, self.now + timedelta(hours=5))
+        self.assertGreater(saved.deadline_at, self.now + timedelta(hours=29))
 
     def test_only_one_concurrent_worker_claims_a_job(self):
         queue.enqueue('scrape', {})

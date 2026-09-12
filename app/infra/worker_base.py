@@ -7,6 +7,7 @@ import time
 import signal
 import threading
 from app.infra.queue import fetch_job, extend_lock, mark_done, mark_failed, sweep_stuck_jobs
+from app.infra.progress import set_progress_reporter
 from app.infra.storage import storage_root
 from app.infra.logging_config import configure_logging
 
@@ -33,12 +34,21 @@ def _process_target(handler, payload, connection, directory, parent_pid):
         os._exit(1)
 
     threading.Thread(target=watch_parent, daemon=True).start()
+
+    def progress():
+        try:
+            connection.send(("progress", None))
+        except (BrokenPipeError, EOFError, OSError):
+            pass
+
+    set_progress_reporter(progress)
     try:
         handler(payload)
-        connection.send(None)
+        connection.send(("result", None))
     except BaseException as exc:
-        connection.send(f"{type(exc).__name__}: {exc}"[:2000])
+        connection.send(("result", f"{type(exc).__name__}: {exc}"[:2000]))
     finally:
+        set_progress_reporter(None)
         connection.close()
 
 
@@ -65,7 +75,7 @@ def stop_process(process) -> None:
 
 
 def run_handler_in_process(handler, payload: dict, timeout: int, *, job_id: int = 0,
-                           attempt: int = 0, cancel_events=()) -> None:
+                           attempt: int = 0, cancel_events=(), idle_timeout: int | None = None) -> None:
     context = multiprocessing.get_context("spawn")
     root = storage_root() / "temp"
     root.mkdir(parents=True, exist_ok=True)
@@ -77,18 +87,47 @@ def run_handler_in_process(handler, payload: dict, timeout: int, *, job_id: int 
             process.start()
             sender.close()
             deadline = time.monotonic() + timeout
+            last_progress = time.monotonic()
+            result_received = False
+            error = None
+
+            def receive_messages():
+                nonlocal last_progress, result_received, error
+                while receiver.poll():
+                    try:
+                        message = receiver.recv()
+                    except EOFError:
+                        break
+                    if isinstance(message, tuple) and len(message) == 2:
+                        kind, value = message
+                        if kind == "progress":
+                            last_progress = time.monotonic()
+                        elif kind == "result":
+                            result_received = True
+                            error = value
+                    else:  # Compatibility with a child started from older code.
+                        result_received = True
+                        error = message
+
             while process.is_alive():
+                receive_messages()
                 if any(event.is_set() for event in cancel_events):
                     raise RuntimeError("Worker stopped or job lease lost")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError(f"Handler exceeded {timeout}s")
-                process.join(min(remaining, 0.5))
+                idle_remaining = None if idle_timeout is None else idle_timeout - (time.monotonic() - last_progress)
+                if idle_remaining is not None and idle_remaining <= 0:
+                    raise TimeoutError(f"Handler made no progress for {idle_timeout}s")
+                wait = min(remaining, 0.5)
+                if idle_remaining is not None:
+                    wait = min(wait, idle_remaining)
+                process.join(max(wait, 0))
+            receive_messages()
             if process.exitcode != 0:
                 raise RuntimeError(f"Handler process exited with code {process.exitcode}")
-            if not receiver.poll():
+            if not result_received:
                 raise RuntimeError("Handler process exited without a result")
-            error = receiver.recv()
             if error is not None:
                 raise RuntimeError(error)
         finally:
@@ -98,7 +137,7 @@ def run_handler_in_process(handler, payload: dict, timeout: int, *, job_id: int 
 
 
 def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_timeout: int = 300,
-               *, isolate_handlers: bool = True):
+               *, isolate_handlers: bool = True, idle_timeouts: dict | None = None):
     """
     لوپ اصلی ورکر. هر ماژول (extraction, learning, ...) این تابع رو با
     type ها و handler های خودش صدا می‌زنه.
@@ -107,6 +146,7 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
     timeouts: {"extraction.crawl_alibaba": 3600, ...}   -> ثانیه، برای جاب سنگین بالا بگیر
     """
     stop = threading.Event()
+    idle_timeouts = idle_timeouts or {}
 
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
@@ -127,7 +167,11 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
             last_sweep_ts = time.time()
 
         try:
-            job = fetch_job(job_types, lock_seconds=max(timeouts.values(), default=default_timeout) + 60,
+            lock_seconds = max(
+                (idle_timeouts.get(kind, timeouts.get(kind, default_timeout)) for kind in job_types),
+                default=default_timeout,
+            ) + 60
+            job = fetch_job(job_types, lock_seconds=lock_seconds,
                             timeouts={kind: timeouts.get(kind, default_timeout) for kind in job_types})
         except Exception:
             logger.exception("Could not fetch job")
@@ -139,6 +183,7 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
 
         job_id, job_type = job["id"], job["type"]
         timeout = timeouts.get(job_type, default_timeout)
+        idle_timeout = idle_timeouts.get(job_type)
         hb_stop = threading.Event()
         lease_lost = threading.Event()
         attempt = job["attempts"]
@@ -146,7 +191,7 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
         def heartbeat():
             while not hb_stop.wait(HEARTBEAT_INTERVAL):
                 try:
-                    if not extend_lock(job_id, timeout + 60, attempt=attempt):
+                    if not extend_lock(job_id, (idle_timeout or timeout) + 60, attempt=attempt):
                         lease_lost.set()
                         return
                 except Exception as e:
@@ -164,7 +209,7 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
 
             if isolate_handlers:
                 run_handler_in_process(handler, job["payload"], timeout, job_id=job_id, attempt=attempt,
-                                       cancel_events=(stop, lease_lost))
+                                       cancel_events=(stop, lease_lost), idle_timeout=idle_timeout)
             else:
                 exc = [None]
 

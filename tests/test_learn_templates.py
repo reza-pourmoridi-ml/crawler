@@ -12,7 +12,7 @@ from app.extractor.service import extract_tickets
 from app.infra.config import Settings, settings
 from app.infra.storage import learned_path, read_templates, read_tickets, write_json_atomic
 from app.learn.service import learn_website, merge_templates
-from app.learn.worker import handle_learn
+from app.learn.worker import handle_learn, main as learn_worker_main
 
 
 class LearnTemplateTests(unittest.TestCase):
@@ -170,8 +170,14 @@ class LearnTemplateTests(unittest.TestCase):
             handle_learn(payload)
         self.assertEqual(learn.call_args.args[1:], (1, 'domestic', self.snapshot_id))
 
+    def test_worker_uses_smart_timeout_only_for_learn(self):
+        with patch('app.learn.worker.configure_logging'), patch('app.learn.worker.run_worker') as run:
+            learn_worker_main()
+        self.assertEqual(run.call_args.args[2], {'learn': settings.learn_hard_timeout})
+        self.assertEqual(run.call_args.kwargs['idle_timeouts'], {'learn': settings.learn_job_timeout})
+
     def test_nonpositive_limits_are_rejected(self):
-        for field in ['learn_max_new_templates', 'learn_max_templates']:
+        for field in ['learn_max_new_templates', 'learn_max_templates', 'learn_job_timeout', 'learn_hard_timeout']:
             for value in [0, -1]:
                 with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
                     Settings(_env_file=None, **{field: value})
