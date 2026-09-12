@@ -51,7 +51,7 @@ percent-encode کنید. سپس:
 
 ```bash
 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml config --quiet
-DOCKER_BUILDKIT=1 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml build --parallel
+DOCKER_BUILDKIT=1 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml build
 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml up -d postgres ollama
 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml --profile model-tools run --rm model-pull
 docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml up -d
@@ -65,6 +65,39 @@ docker compose --env-file .env.docker -f compose.yaml -f compose.local.yaml --pr
 
 پنل روی `http://127.0.0.1:8000/control/dashboard` است. پورت Ollama در override
 محلی فقط روی loopback منتشر می‌شود.
+
+### استفاده از Ollama و مدل‌های از قبل موجود روی این لپ‌تاپ
+
+روی این سیستم image قبلی Ollama و volume خارجی `crawler_ollama_data` موجود است.
+برای جلوگیری از دانلود مجدد image و حفظ مدل‌های قبلی، فایل زیر را نیز به همهٔ
+دستورهای local اضافه کنید:
+
+```text
+-f compose.ollama-existing.yaml
+```
+
+مثلاً:
+
+```bash
+docker stop ollama
+
+docker compose --env-file .env.docker \
+  -f compose.yaml \
+  -f compose.local.yaml \
+  -f compose.ollama-existing.yaml \
+  up -d postgres ollama
+```
+
+توقف کانتینر قدیمی volume آن را حذف نمی‌کند. مدل‌های موجود فعلی
+`qwen2.5-coder:7b` و `llama3.2:3b` هستند. مدل مورد انتظار تنظیم local یعنی
+`qwen2.5-coder:3b` هنوز در آن volume وجود ندارد. بنابراین سه انتخاب دارید:
+
+- تنظیم پیش‌فرض را نگه دارید و فقط `qwen2.5-coder:3b` را یک‌بار با profile
+  `model-tools` pull کنید؛ فایل‌های قبلی حفظ می‌شوند.
+- برای تست بدون هیچ دانلودی، در `.env.docker` موقتاً
+  `OLLAMA_MODEL=llama3.2:3b` بگذارید؛ کیفیت coder آن پایین‌تر است.
+- از `qwen2.5-coder:7b` موجود استفاده کنید؛ روی CPU این لپ‌تاپ کندتر است و
+  به حافظهٔ بیشتری نیاز دارد.
 
 ## cache ساخت
 

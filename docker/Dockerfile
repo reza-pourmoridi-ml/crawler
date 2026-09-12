@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright/python:v1.61.0-noble
 
