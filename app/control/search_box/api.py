@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import (
     APIRouter,
@@ -26,9 +28,15 @@ from app.control.search_box import (
 from app.control.search_box.schemas import (
     SearchRequestCreate,
     SearchRequestResponse,
+    SearchResultResponse,
 )
 
 from app.infra.db import get_db
+from app.orchestration.results import (
+    SearchResultNotFoundError,
+    get_search_result,
+    get_search_results,
+)
 
 
 router = APIRouter(
@@ -88,6 +96,29 @@ def _render_page(
         for airport in airports
     ]
 
+    search_results = get_search_results(
+        db,
+        [
+            item.id
+            for item in [
+                *domestic_requests,
+                *international_requests,
+            ]
+        ],
+    )
+    update_times = [
+        result["updated_at"]
+        for result in search_results.values()
+        if result["updated_at"] is not None
+    ]
+    last_results_updated_at = max(update_times) if update_times else None
+    if last_results_updated_at is not None:
+        if last_results_updated_at.tzinfo is None:
+            last_results_updated_at = last_results_updated_at.replace(tzinfo=timezone.utc)
+        last_results_updated_at = last_results_updated_at.astimezone(
+            ZoneInfo("Asia/Tehran")
+        )
+
     return templates.TemplateResponse(
         request=request,
 
@@ -105,6 +136,12 @@ def _render_page(
 
             "international_requests":
                 international_requests,
+
+            "search_results":
+                search_results,
+
+            "last_results_updated_at":
+                last_results_updated_at,
 
             "error":
                 error,
@@ -256,6 +293,20 @@ def get_search_requests(
             db
         )
     )
+
+
+@router.get(
+    "/{search_request_id}/results",
+    response_model=SearchResultResponse,
+)
+def search_request_results(
+    search_request_id: int,
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_search_result(db, search_request_id)
+    except SearchResultNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post(

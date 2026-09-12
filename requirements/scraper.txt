@@ -1,0 +1,3 @@
+-c constraints.txt
+
+playwright==1.61.0

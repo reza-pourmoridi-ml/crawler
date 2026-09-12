@@ -1,0 +1,60 @@
+services:
+  postgres:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2G
+          pids: 256
+        reservations:
+          cpus: "0.50"
+          memory: 512M
+
+  ollama:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "8.00"
+          memory: 20G
+          pids: 512
+        reservations:
+          cpus: "2.00"
+          memory: 12G
+
+  scraper:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "3.00"
+          memory: 3G
+          pids: 512
+        reservations:
+          cpus: "0.75"
+          memory: 1G
+
+  learn:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "4.00"
+          memory: 3G
+          pids: 256
+        reservations:
+          cpus: "1.00"
+          memory: 1G
+
+  extractor:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1G
+          pids: 128
+        reservations:
+          cpus: "0.25"
+          memory: 256M

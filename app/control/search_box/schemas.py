@@ -65,3 +65,44 @@ class SearchRequestResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True
     )
+
+
+class LowestAirlineOfferResponse(BaseModel):
+    airline: str
+    price: int
+    time: str
+    website_id: int
+    website_name: str
+    source_job_id: int
+    updated_at: datetime
+
+
+class ProviderSearchResultResponse(BaseModel):
+    website_id: int
+    website_name: str
+    status: Literal[
+        "scraping",
+        "processing",
+        "updating",
+        "ready",
+        "stale",
+        "failed",
+        "waiting",
+    ]
+    offers_count: int
+    source_job_id: int | None
+    updated_at: datetime | None
+
+
+class SearchResultResponse(BaseModel):
+    search_request_id: int
+    status: Literal[
+        "waiting",
+        "processing",
+        "partial",
+        "completed",
+        "failed",
+    ]
+    updated_at: datetime | None
+    offers: list[LowestAirlineOfferResponse]
+    providers: list[ProviderSearchResultResponse]

@@ -1,4 +1,3 @@
-import json
 import logging
 import signal
 import threading
@@ -14,9 +13,11 @@ from app.orchestration.jobs import advance_pipeline, create_scrape_jobs
 from app.orchestration.maintenance import maintain_pipeline
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from app.infra.logging_config import configure_logging
 
 
 POLL_INTERVAL_SECONDS = 5 * 60
+logger = logging.getLogger(__name__)
 
 def get_search_requests() -> list[dict]:
     today = datetime.now(
@@ -69,19 +70,8 @@ def get_search_requests() -> list[dict]:
 def check_search_requests() -> list[dict]:
     requests = get_search_requests()
 
-    print(
-        "\n[orchestrator] search requests:",
-        flush=True,
-    )
-
-    print(
-        json.dumps(
-            requests,
-            ensure_ascii=False,
-            indent=2,
-        ),
-        flush=True,
-    )
+    # Do not log route/date payloads: they are user search data.
+    logger.info("Scheduling eligible search requests count=%s", len(requests))
 
     create_scrape_jobs(requests)
     advance_pipeline()
@@ -90,7 +80,7 @@ def check_search_requests() -> list[dict]:
 
 
 def run() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging("orchestrator")
     stop_event = threading.Event()
 
     def stop(*_args) -> None:
@@ -106,35 +96,25 @@ def run() -> None:
         stop,
     )
 
-    print(
-        (
-            "[orchestrator] started; "
-            "checking search requests "
-            "every 5 minutes."
-        ),
-        flush=True,
-    )
+    logger.info("Orchestrator started poll_interval_seconds=%s", POLL_INTERVAL_SECONDS)
 
     while not stop_event.is_set():
 
         try:
             maintain_pipeline()
         except Exception:
-            logging.exception("[orchestrator] Maintenance failed; will retry next poll")
+            logger.exception("Maintenance failed; will retry next poll")
 
         try:
             check_search_requests()
         except Exception:
-            logging.exception("[orchestrator] Pipeline check failed; will retry next poll")
+            logger.exception("Pipeline check failed; will retry next poll")
 
         stop_event.wait(
             POLL_INTERVAL_SECONDS
         )
 
-    print(
-        "[orchestrator] stopped.",
-        flush=True,
-    )
+    logger.info("Orchestrator stopped")
 
 
 if __name__ == "__main__":

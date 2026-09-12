@@ -248,9 +248,13 @@ class PipelineTests(unittest.TestCase):
         scrape = self.scrape()
         payload = {**scrape['payload'], 'source_job_id': scrape['id']}
         self.learned()
-        with patch('app.extractor.worker.SessionLocal', side_effect=lambda: Session(engine)):
+        with patch('app.extractor.worker.SessionLocal', side_effect=lambda: Session(engine)), \
+             patch('app.extractor.worker.save_provider_minimums') as save:
             handle_extract(payload)
+        save.assert_called_once()
+        self.assertEqual(save.call_args.args[1], payload)
         result = json.loads(extracted_path(payload).read_text())
+        self.assertEqual(save.call_args.args[2], result)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['airline'], 'ماهان')
         self.assertEqual(result[0]['price'], 2500000)

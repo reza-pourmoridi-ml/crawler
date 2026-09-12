@@ -1,0 +1,6 @@
+-c constraints.txt
+
+alembic==1.19.1
+psycopg[binary]==3.3.4
+pydantic-settings==2.15.0
+SQLAlchemy==2.0.52

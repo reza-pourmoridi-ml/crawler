@@ -11,7 +11,11 @@ from typing import List, Tuple
 
 import requests
 from bs4 import BeautifulSoup, Tag
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:  # Progress output is optional in minimal worker environments.
+    def tqdm(iterable, **_kwargs):
+        return iterable
 
 from app.infra.config import settings
 

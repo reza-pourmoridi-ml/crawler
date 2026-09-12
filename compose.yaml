@@ -1,0 +1,357 @@
+name: crawler
+
+x-json-logging: &json-logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "5"
+    compress: "true"
+
+x-app-environment: &app-environment
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+  STORAGE_ROOT: /data
+  AUTH_STATE_FILE: /data/auth/auth.json
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  OLLAMA_HOST: http://ollama:11434
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:3b}
+  OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-360}
+  TZ: Asia/Tehran
+
+x-app-runtime: &app-runtime
+  init: true
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  ulimits:
+    core:
+      soft: 0
+      hard: 0
+  tmpfs:
+    - /tmp:mode=1777
+    - /home/appuser:uid=10001,gid=10001,mode=0700
+  logging: *json-logging
+  networks:
+    - backend
+
+services:
+  postgres:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crawler}
+      POSTGRES_USER: ${POSTGRES_USER:-crawler}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    stop_grace_period: 30s
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    logging: *json-logging
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1G
+          pids: 256
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: control
+    image: crawler-control:${IMAGE_TAG:-local}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:mode=1777
+      - /home/appuser:uid=10001,gid=10001,mode=0700
+    logging: *json-logging
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+          pids: 128
+
+  seed:
+    image: crawler-control:${IMAGE_TAG:-local}
+    command: ["python", "-m", "app.infra.seeders.run"]
+    profiles: ["setup"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp:mode=1777
+      - /home/appuser:uid=10001,gid=10001,mode=0700
+    logging: *json-logging
+    networks: ["backend"]
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+          pids: 128
+
+  ollama:
+    image: ollama/ollama:0.34.0
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    stop_grace_period: 60s
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    logging: *json-logging
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "4.00"
+          memory: 5G
+          pids: 512
+        reservations:
+          cpus: "1.00"
+          memory: 2G
+
+  model-pull:
+    image: ollama/ollama:0.34.0
+    command: ["pull", "${OLLAMA_MODEL:-qwen2.5-coder:3b}"]
+    profiles: ["model-tools"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    logging: *json-logging
+    networks: ["backend"]
+
+  control:
+    <<: *app-runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: control
+    image: crawler-control:${IMAGE_TAG:-local}
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: control
+      CONTROL_HOST: 0.0.0.0
+      CONTROL_PORT: 8000
+    ports:
+      - "127.0.0.1:${CONTROL_PUBLISHED_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.infra.health", "control"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+          pids: 128
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+
+  orchestrator:
+    <<: *app-runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: orchestrator
+    image: crawler-orchestrator:${IMAGE_TAG:-local}
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: orchestrator
+    volumes:
+      - crawler_storage:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.infra.health", "database"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 384M
+          pids: 128
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+
+  scraper:
+    <<: *app-runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scraper
+    image: crawler-scraper:${IMAGE_TAG:-local}
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: scraper
+    volumes:
+      - crawler_storage:/data
+      - type: bind
+        source: ${AUTH_STATE_HOST_PATH:-./app/auth/auth.json}
+        target: /data/auth/auth.json
+    shm_size: 1gb
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.infra.health", "database"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2G
+          pids: 512
+        reservations:
+          cpus: "0.50"
+          memory: 768M
+
+  learn:
+    <<: *app-runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: learn
+    image: crawler-learn:${IMAGE_TAG:-local}
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: learn
+    volumes:
+      - crawler_storage:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.infra.health", "learn"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1536M
+          pids: 256
+        reservations:
+          cpus: "0.50"
+          memory: 512M
+
+  extractor:
+    <<: *app-runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: extractor
+    image: crawler-extractor:${IMAGE_TAG:-local}
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: extractor
+    volumes:
+      - crawler_storage:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.infra.health", "database"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 768M
+          pids: 128
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+volumes:
+  postgres_data:
+  crawler_storage:
+  ollama_models:
+
+networks:
+  backend:
+    driver: bridge

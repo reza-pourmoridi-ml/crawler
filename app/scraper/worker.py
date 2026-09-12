@@ -10,13 +10,14 @@ from app.infra.worker_base import run_worker
 from app.infra.storage import snapshot_directory
 from app.scraper.service import scrape_url
 from app.scraper.url_builder import build_scrape_url
+from app.infra.logging_config import configure_logging
 
 
 logger = logging.getLogger(__name__)
 
 JOB_TYPE = "scrape"
 JOB_TIMEOUT = settings.scrape_job_timeout
-OUTPUT_ROOT = Path("scraper_raw_data")
+OUTPUT_ROOT = Path(settings.storage_root) / "scraper_raw_data"
 
 
 def handle_scrape(payload: dict) -> None:
@@ -73,11 +74,11 @@ def handle_scrape(payload: dict) -> None:
         )
 
     logger.info(
-        "Scrape completed search_request=%s website=%s url=%s result=%s",
+        "Scrape completed search_request=%s website=%s status=%s artifact=%s",
         search_request_id,
         website_id,
-        url,
-        result,
+        result.get("status"),
+        bool(result.get("html_path")),
     )
 
 
@@ -92,9 +93,7 @@ TIMEOUTS = {
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO
-    )
+    configure_logging("scraper")
 
     run_worker(
         job_types=list(HANDLERS),

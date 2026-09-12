@@ -1,0 +1,4 @@
+services:
+  ollama:
+    ports:
+      - "127.0.0.1:${OLLAMA_PUBLISHED_PORT:-11434}:11434"

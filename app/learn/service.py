@@ -57,6 +57,8 @@ def learn_website(
         candidates = fast_safe_extraction(html_path, 1, folder_name=directory)
         result = process_file_validation(candidates["output_file"], 1, output_dir=directory)
         tickets = read_tickets(Path(result["output_path"]))
+        if not tickets:
+            raise ValueError("Learning produced no valid ticket templates.")
         output_path = learned_path(website_id, route_type)
         existing = read_templates(output_path) if output_path.exists() else []
         merged = merge_templates(existing, tickets, source_snapshot_id)

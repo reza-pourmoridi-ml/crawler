@@ -8,6 +8,7 @@ import signal
 import threading
 from app.infra.queue import fetch_job, extend_lock, mark_done, mark_failed, sweep_stuck_jobs
 from app.infra.storage import storage_root
+from app.infra.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ SWEEP_INTERVAL = 300  # هر ۵ دقیقه جاب‌های گیرکرده رو �
 
 
 def _process_target(handler, payload, connection, directory, parent_pid):
+    configure_logging(os.getenv("SERVICE_NAME", "worker"))
     if os.name == "posix":
         os.setsid()
     os.environ["CRAWLER_JOB_TEMP"] = directory
@@ -182,7 +184,7 @@ def run_worker(job_types: list[str], handlers: dict, timeouts: dict, default_tim
 
             if not mark_done(job_id, attempt=attempt):
                 raise RuntimeError("Job lease expired before completion")
-            logger.info("Job %s (%s) completed: status=failed outcome=success", job_id, job_type)
+            logger.info("Job %s (%s) completed: outcome=success", job_id, job_type)
         except Exception as e:
             logger.error("Job %s (%s) failed: %s", job_id, job_type, e)
             try:

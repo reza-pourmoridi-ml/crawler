@@ -15,14 +15,17 @@ class Settings(BaseSettings):
     job_retention_seconds: int = Field(default=7 * 24 * 60 * 60, ge=1)
     temporary_retention_seconds: int = Field(default=24 * 60 * 60, ge=1)
     ollama_host: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen2.5-coder:14b"
+    ollama_model: str = "qwen2.5-coder:3b"
     ollama_timeout: int = 360
     final_validation_max_html_chars: int = 100000
+    auth_state_file: str = "app/auth/auth.json"
+    control_host: str = "0.0.0.0"
+    control_port: int = Field(default=8000, ge=1, le=65535)
+    log_level: str = "INFO"
 
-    # این بخش را اضافه یا اصلاح کن:
     model_config = SettingsConfigDict(
         env_file=".env",
-        extra="ignore"  # این یعنی اگر در .env چیزی بود که اینجا تعریف نشده، ارور نده
+        extra="ignore",
     )
 
 settings = Settings()

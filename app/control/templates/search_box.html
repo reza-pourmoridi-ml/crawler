@@ -1,5 +1,48 @@
 {% extends "base.html" %}
 
+{% macro render_search_result(result) %}
+    {% set status_labels = {
+        'waiting': 'در انتظار شروع پردازش',
+        'processing': 'در حال جمع‌آوری قیمت‌ها',
+        'partial': 'نتیجهٔ موقت؛ بعضی وب‌سایت‌ها هنوز آماده نیستند',
+        'completed': 'نتیجهٔ کامل آخرین اجرا',
+        'failed': 'دریافت نتیجه ناموفق بود'
+    } %}
+
+    {% if result.offers %}
+        <details class="search-results">
+            <summary>
+                {{ result.offers | length }} ایرلاین —
+                {{ status_labels[result.status] }}
+            </summary>
+            <table class="compact-results-table">
+                <thead>
+                    <tr>
+                        <th>ایرلاین</th>
+                        <th>کمترین قیمت</th>
+                        <th>فروشنده</th>
+                        <th>ساعت</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for offer in result.offers %}
+                        <tr>
+                            <td>{{ offer.airline }}</td>
+                            <td><bdi>{{ "{:,}".format(offer.price) }}</bdi></td>
+                            <td>{{ offer.website_name }}</td>
+                            <td><bdi>{{ offer.time or '—' }}</bdi></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% else %}
+        <span class="help-text">
+            {{ status_labels[result.status] }}
+        </span>
+    {% endif %}
+{% endmacro %}
+
 {% block title %}
 جستجوی پرواز
 {% endblock %}
@@ -22,6 +65,18 @@
 
     </div>
 
+</div>
+
+
+<div class="results-update-banner" role="status">
+    آخرین به‌روزرسانی قیمت‌ها (به وقت تهران):
+    <bdi>
+        {% if last_results_updated_at %}
+            {{ last_results_updated_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        {% else %}
+            هنوز نتیجه‌ای ذخیره نشده است
+        {% endif %}
+    </bdi>
 </div>
 
 
@@ -343,6 +398,10 @@
                         زمان ثبت
                     </th>
 
+                    <th>
+                        نتایج کمترین قیمت هر ایرلاین
+                    </th>
+
                 </tr>
 
             </thead>
@@ -393,6 +452,10 @@
                             }}
                         </bdi>
 
+                    </td>
+
+                    <td>
+                        {{ render_search_result(search_results[item.id]) }}
                     </td>
 
                 </tr>
@@ -484,6 +547,10 @@
                         زمان ثبت
                     </th>
 
+                    <th>
+                        نتایج کمترین قیمت هر ایرلاین
+                    </th>
+
                 </tr>
 
             </thead>
@@ -534,6 +601,10 @@
                             }}
                         </bdi>
 
+                    </td>
+
+                    <td>
+                        {{ render_search_result(search_results[item.id]) }}
                     </td>
 
                 </tr>

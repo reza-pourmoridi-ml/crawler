@@ -1,0 +1,4 @@
+-c constraints.txt
+
+beautifulsoup4==4.15.0
+requests==2.34.2

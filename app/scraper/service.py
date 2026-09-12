@@ -2,15 +2,16 @@ import asyncio
 import random
 import re
 import shutil
+import logging
 from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+
+from app.infra.config import settings
+
 HARD_PAUSE_LOAD_TIME = 20
 
-AUTH_STATE_FILE = (
-    Path(__file__).resolve().parents[1]
-    / "auth"
-    / "auth.json"
-)
+logger = logging.getLogger(__name__)
+AUTH_STATE_FILE = Path(settings.auth_state_file)
 
 def find_chromium_executable():
     candidates = [
@@ -41,7 +42,7 @@ async def wait_for_page_stability(page, timeout_ms=15000, stability_window_ms=20
     اطمینان از اینکه صفحه از نظر شبکه و تغییرات DOM به پایداری نسبی رسیده است.
     مانع از ثبت اسکرین‌شات از Skeletonها یا وضعیت Loading می‌شود.
     """
-    print("[*] Waiting for page stability (DOM & Network)...")
+    logger.debug("Waiting for page stability")
     start_time = asyncio.get_running_loop().time()
     last_dom_size = 0
     stable_since = start_time
@@ -55,7 +56,7 @@ async def wait_for_page_stability(page, timeout_ms=15000, stability_window_ms=20
 
         elapsed_stable = (asyncio.get_running_loop().time() - stable_since) * 1000
         if elapsed_stable >= stability_window_ms:
-            print(f"[+] Page stable for {stability_window_ms}ms.")
+            logger.debug("Page stable window_ms=%s", stability_window_ms)
             break
 
         await asyncio.sleep(0.5)
@@ -125,7 +126,7 @@ async def hover_visible_elements(page, max_hovers=3):
 
 
 async def human_like_scroll(page, max_steps=10):
-    print("[*] Starting adaptive scroll to trigger lazy loading...")
+    logger.debug("Starting adaptive scroll")
     stable_rounds = 0
     previous_height = await page.evaluate("() => document.body.scrollHeight")
 
@@ -152,8 +153,6 @@ async def human_like_scroll(page, max_steps=10):
         previous_height = current_height
 
         if near_bottom and stable_rounds >= 2:
-            break
-        if stable_rounds >= 3:
             break
 
 
@@ -199,24 +198,21 @@ async def wait_for_manual_resolution_if_needed(
     if not matched:
         return "clean"
 
-    print(f"\n[!] Possible CAPTCHA / block detected. Matched: {matched}")
+    logger.warning("Possible CAPTCHA or provider block detected indicators=%s", matched)
     if headless:
-        print("[!] Headless mode is active. Cannot wait for manual input.")
+        logger.warning("Headless mode cannot wait for CAPTCHA input")
         return "captcha_detected"
 
-    print(
-        f"[!] Headless is disabled. You have {timeout_sec} seconds "
-        "to resolve it in the UI..."
-    )
+    logger.warning("Waiting for manual CAPTCHA resolution timeout_seconds=%s", timeout_sec)
     start_time = asyncio.get_running_loop().time()
     while asyncio.get_running_loop().time() - start_time < timeout_sec:
         await asyncio.sleep(5)
         still_blocked = await detect_block_or_captcha(page)
         if not still_blocked:
-            print("[+] CAPTCHA seems resolved! Continuing...")
+            logger.info("CAPTCHA appears resolved")
             return "resolved"
 
-    print("[!] Timeout waiting for manual CAPTCHA resolution.")
+    logger.warning("Timed out waiting for manual CAPTCHA resolution")
     return "captcha_timeout"
 
 
@@ -949,7 +945,7 @@ async def scrape_url(
         if has_auth_file:
             context_args["storage_state"] = str(AUTH_STATE_FILE)
         else:
-            print(f"[!] Auth state not found: {AUTH_STATE_FILE}")
+            logger.warning("Authentication state file is unavailable")
 
         browser = await p.chromium.launch(
             # executable_path=executable_path,
@@ -1018,7 +1014,7 @@ async def scrape_url(
         #     except Exception:
         #         pass
 
-        print(f"[*] Navigating to: {target_url}")
+        logger.info("Navigating to configured provider")
         try:
             await page.goto(
                 target_url,
@@ -1026,7 +1022,7 @@ async def scrape_url(
                 timeout=50000,
             )
         except PlaywrightTimeoutError:
-            print("[!] Timeout on initial load.")
+            logger.warning("Initial page load timed out; continuing with current DOM")
 
         await wait_for_page_stability(page)
         await asyncio.sleep(HARD_PAUSE_LOAD_TIME)
@@ -1051,7 +1047,7 @@ async def scrape_url(
                 "screenshot": str(screenshot_path),
             }
 
-        await human_like_scroll(page, max_steps=8)
+        await human_like_scroll(page, max_steps=30)
         await wait_for_page_stability(
             page,
             stability_window_ms=3000,
@@ -1096,8 +1092,8 @@ async def scrape_url(
                 await context.storage_state(
                     path=str(AUTH_STATE_FILE),
                 )
-            except Exception as exc:
-                print(f"[!] Failed to update auth state: {exc}")
+            except Exception:
+                logger.exception("Failed to update authentication state")
 
         await browser.close()
         return {
