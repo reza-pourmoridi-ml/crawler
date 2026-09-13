@@ -13,7 +13,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 try:
     from tqdm import tqdm
-except ImportError:  # Progress output is optional in minimal worker environments.
+except ImportError:
     def tqdm(iterable, **_kwargs):
         return iterable
 
@@ -59,7 +59,6 @@ def extract_dom_layers(html: str) -> List[str]:
     for root_tag in top_level_tags:
         for child in root_tag.children:
             if isinstance(child, Tag):
-                # بررسی اینکه آیا این فرزند خودش والد است (حداقل یک فرزند تگی دارد)
                 has_child_tag = any(isinstance(c, Tag) for c in child.children)
                 if has_child_tag:
                     parents_html.append(str(child))
@@ -68,8 +67,6 @@ def extract_dom_layers(html: str) -> List[str]:
 
 
 def clean_html_with_js(html: str) -> str:
-    # Safety: cap raw input BEFORE jsdom parses it.
-    # jsdom can be memory-heavy on very large/pathological HTML.
     if len(html) > MAX_HTML_CHARS:
         html = html[:MAX_HTML_CHARS]
 
@@ -111,7 +108,6 @@ function isHiddenElement(el) {
     );
 }
 
-// Remove HTML comments
 {
     const walker = document.createTreeWalker(
         clone,
@@ -128,7 +124,6 @@ function isHiddenElement(el) {
     }
 }
 
-// Remove only SVGs and hidden elements
 {
     const elements = Array.from(clone.querySelectorAll("*")).reverse();
 
@@ -223,7 +218,6 @@ def final_kill_process(html: str) -> bool:
 def final_validation(html_chunk: str)  -> Tuple[bool, float]:
 
     html_chunk = clean_html_with_js(html_chunk)
-    # print(html_chunk[:MAX_HTML_CHARS])
     system_rules = """
     You are a strict whole-chunk HTML binary classifier.
     
@@ -302,7 +296,6 @@ def final_validation(html_chunk: str)  -> Tuple[bool, float]:
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        # "keep_alive": "30m",
         "options": {
             "temperature": 0.15,
             "num_predict": 440,
@@ -431,7 +424,6 @@ def process_file_validation(
         current_layers = next_layers
         layer_count += 1
 
-    # حذف duplicateهای احتمالی، بدون تغییر ترتیب
     validated_tickets = list(dict.fromkeys(validated_tickets))
 
     output_filename = (

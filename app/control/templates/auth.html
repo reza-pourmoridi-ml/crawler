@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Auth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Auth</h1>
+        <p class="help-text">مدیریت فایل احراز هویت Crawler Auth Setup</p>
+    </div>
+</div>
+
+{% if saved %}<div class="success" role="status">فایل auth.json با موفقیت جایگزین شد.</div>{% endif %}
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="summary-card auth-status-card">
+    <dl>
+        <dt>وضعیت auth.json</dt>
+        <dd>{% if auth_exists %}<mark>موجود است</mark>{% else %}<span class="badge">وجود ندارد</span>{% endif %}</dd>
+        <dt>آخرین به‌روزرسانی</dt>
+        <dd>
+            {% if auth_updated_at %}
+                <bdi>{{ auth_updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</bdi>
+            {% else %}
+                —
+            {% endif %}
+        </dd>
+    </dl>
+
+    <form method="post" action="/control/auth/page" enctype="multipart/form-data">
+        <div class="form-field">
+            <label for="auth-file">فایل auth.json</label>
+            <input id="auth-file" name="auth_file" type="file" accept="application/json,.json" required>
+        </div>
+        <button class="button" type="submit">{% if auth_exists %}جایگزینی فایل{% else %}آپلود فایل{% endif %}</button>
+    </form>
+</div>
+{% endblock %}

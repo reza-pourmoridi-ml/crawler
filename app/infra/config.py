@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     job_retention_seconds: int = Field(default=7 * 24 * 60 * 60, ge=1)
     temporary_retention_seconds: int = Field(default=24 * 60 * 60, ge=1)
     ollama_host: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen2.5-coder:3b"
+    ollama_model: str = "qwen2.5-coder:7b"
     ollama_timeout: int = 360
     final_validation_max_html_chars: int = 100000
     auth_state_file: str = "storage/auth/auth.json"

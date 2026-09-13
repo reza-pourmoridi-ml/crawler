@@ -13,7 +13,7 @@ x-app-environment: &app-environment
   AUTH_STATE_FILE: /data/auth/auth.json
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   OLLAMA_HOST: http://ollama:11434
-  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:3b}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:7b}
   OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-360}
   LEARN_JOB_TIMEOUT: ${LEARN_JOB_TIMEOUT:-21600}
   LEARN_HARD_TIMEOUT: ${LEARN_HARD_TIMEOUT:-108000}
@@ -25,6 +25,20 @@ x-storage-bind: &storage-bind
   target: /data
   bind:
     create_host_path: false
+
+x-auth-bind: &auth-bind
+  type: bind
+  source: ${STORAGE_HOST_PATH:-./storage}/auth
+  target: /data/auth
+  bind:
+    create_host_path: true
+
+x-ollama-storage-bind: &ollama-storage-bind
+  type: bind
+  source: ${STORAGE_HOST_PATH:-./storage}/ollama
+  target: /root/.ollama
+  bind:
+    create_host_path: true
 
 x-app-runtime: &app-runtime
   init: true
@@ -152,7 +166,7 @@ services:
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
       OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
     volumes:
-      - ollama_models:/root/.ollama
+      - *ollama-storage-bind
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 15s
@@ -180,14 +194,13 @@ services:
 
   model-pull:
     image: ollama/ollama:0.34.0
-    command: ["pull", "${OLLAMA_MODEL:-qwen2.5-coder:3b}"]
-    profiles: ["model-tools"]
+    command: ["pull", "${OLLAMA_MODEL:-qwen2.5-coder:7b}"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     depends_on:
       ollama:
         condition: service_healthy
-    restart: "no"
+    restart: on-failure
     logging: *json-logging
     networks: ["backend"]
 
@@ -208,6 +221,7 @@ services:
     volumes:
       - <<: *storage-bind
         read_only: true
+      - *auth-bind
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -246,7 +260,6 @@ services:
     healthcheck:
       test: ["CMD", "python", "-m", "app.infra.health", "database"]
       interval: 30s
-      # Importing SQLAlchemy can exceed 5s while Ollama saturates the laptop CPU.
       timeout: 15s
       retries: 3
       start_period: 15s
@@ -309,8 +322,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      ollama:
-        condition: service_healthy
+      model-pull:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-m", "app.infra.health", "learn"]
       interval: 30s
@@ -362,7 +375,6 @@ services:
 
 volumes:
   postgres_data:
-  ollama_models:
 
 networks:
   backend:

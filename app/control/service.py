@@ -54,7 +54,6 @@ def _clean_airline_values(
     if any(unicodedata.category(char) == "Cc" for char in official_name_fa):
         raise ValueError("نام رسمی فارسی دارای نویسهٔ نامعتبر است.")
 
-    # حذف فاصله‌های اضافی و aliasهای خالی
     cleaned_aliases = []
     seen = set()
 
@@ -121,7 +120,6 @@ def update_airline(
     )
     airline.official_name_fa = official_name_fa
 
-    # حفظ Aliasهای موجود برای جلوگیری از تداخل با قید یکتایی هنگام ذخیره
     existing_aliases = {
         alias.alias_name: alias
         for alias in airline.aliases

@@ -20,7 +20,6 @@ def upgrade() -> None:
         ),
     )
 
-    # مقداردهی درخواست‌های قبلی
     op.execute(
         """
         UPDATE search_requests AS sr

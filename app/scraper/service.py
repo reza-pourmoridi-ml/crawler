@@ -216,6 +216,37 @@ async def wait_for_manual_resolution_if_needed(
     return "captcha_timeout"
 
 
+async def capture_page_screenshot(page, path: Path) -> Path | None:
+    try:
+        await page.screenshot(
+            path=str(path),
+            full_page=True,
+            timeout=30000,
+            animations="disabled",
+        )
+        return path
+    except Exception as exc:
+        logger.warning(
+            "Full-page screenshot failed; retrying with the viewport error=%s",
+            type(exc).__name__,
+        )
+
+    try:
+        await page.screenshot(
+            path=str(path),
+            full_page=False,
+            timeout=15000,
+            animations="disabled",
+        )
+        return path
+    except Exception as exc:
+        logger.warning(
+            "Viewport screenshot failed; continuing without a screenshot error=%s",
+            type(exc).__name__,
+        )
+        return None
+
+
 async def extract_visible_cards(page):
     candidates = []
     selectors = [
@@ -365,37 +396,21 @@ async def extract_clean_html(page) -> str:
     return await page.evaluate(
         """
         () => {
-            /*
-             * Conservative semantic cleanup:
-             *
-             * - فقط عناصر موجود در REMOVE_ELEMENTS حذف می‌شوند.
-             * - هیچ تگ دیگری حذف، unwrap یا جابه‌جا نمی‌شود.
-             * - هیچ attributeای حذف نمی‌شود.
-             * - هیچ عنصر خالی حذف نمی‌شود.
-             * - commentها حفظ می‌شوند.
-             * - متن و whitespace بدون تغییر حفظ می‌شوند.
-             */
-
             const REMOVE_ELEMENTS = new Set([
-                // CSS و JavaScript
                 "style",
                 "script",
                 "link",
 
-                // Metadata مربوط به head
                 "head",
                 "meta",
                 "base",
 
-                // گرافیک غیرمتنی
                 "svg",
                 "canvas",
 
-                // محتوای رسانه‌ای غیرمتنی
                 "video",
                 "audio",
 
-                // محتوای خارجی یا embed شده
                 "iframe",
                 "object",
                 "embed"
@@ -403,12 +418,6 @@ async def extract_clean_html(page) -> str:
 
             const clone = document.documentElement.cloneNode(true);
 
-            /*
-             * حذف فقط تگ‌های صریحاً تعیین‌شده.
-             *
-             * querySelectorAll روی clone انجام می‌شود تا هیچ بخشی
-             * از document اصلی تغییر نکند.
-             */
             for (const tagName of REMOVE_ELEMENTS) {
                 const elements = clone.querySelectorAll(tagName);
 
@@ -416,24 +425,6 @@ async def extract_clean_html(page) -> str:
                     element.remove();
                 }
             }
-
-            /*
-             * عمداً انجام نمی‌دهیم:
-             *
-             * - حذف head
-             * - حذف noscript یا template
-             * - حذف comment
-             * - حذف attributeها
-             * - حذف class/id/role/aria/data
-             * - حذف style attribute
-             * - حذف whitespace
-             * - حذف عناصر خالی
-             * - unwrap کردن تگ‌های ناشناخته
-             * - محدود کردن تگ‌ها به allowlist
-             *
-             * چون هرکدام ممکن است برای تشخیص ساختار، layout، لوگو،
-             * CTA، route، قیمت یا duplicateهای responsive به LLM کمک کنند.
-             */
 
             const doctype = document.doctype
                 ? "<!DOCTYPE " + document.doctype.name + ">\\\\n"
@@ -571,9 +562,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 other_text: []
             };
 
-            /*
-             * عنوان‌ها
-             */
             for (const element of document.querySelectorAll(
                 "h1, h2, h3, h4, h5, h6, [role='heading']"
             )) {
@@ -607,9 +595,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * منوها و بخش‌های ناوبری
-             */
             for (const element of document.querySelectorAll(
                 "nav, [role='navigation']"
             )) {
@@ -631,9 +616,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * لیست‌های واقعی HTML و لیست‌های ARIA
-             */
             for (const list of document.querySelectorAll(
                 "ul, ol, [role='list'], [role='listbox']"
             )) {
@@ -674,12 +656,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 }
             }
 
-            /*
-             * کارت‌ها و آیتم‌های تکرارشونده.
-             *
-             * این selector عمداً سایت‌محور نیست و کلاس‌هایی مثل
-             * card، result، flight، ticket و hotel را بررسی می‌کند.
-             */
             const cardSelector = [
                 "article",
                 "[role='article']",
@@ -713,9 +689,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * دکمه‌ها
-             */
             for (const element of document.querySelectorAll(
                 "button, [role='button'], input[type='button'], " +
                 "input[type='submit']"
@@ -741,9 +714,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * لینک‌ها
-             */
             for (const element of document.querySelectorAll(
                 "a[href], [role='link']"
             )) {
@@ -763,9 +733,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * فیلدهای فرم
-             */
             for (const element of document.querySelectorAll(
                 "input, select, textarea, [role='textbox'], " +
                 "[role='combobox'], [role='searchbox']"
@@ -786,9 +753,7 @@ async def extract_visible_semantic_text(page) -> dict:
                         if (labelElement) {
                             label = getElementText(labelElement, 300);
                         }
-                    } catch {
-                        // Ignore invalid selector errors.
-                    }
+                    } catch {}
                 }
 
                 label = normalizeText(
@@ -830,9 +795,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * خطاها، هشدارها و وضعیت‌ها
-             */
             for (const element of document.querySelectorAll(
                 "[role='alert'], [role='status'], " +
                 "[aria-live='assertive'], [aria-live='polite']"
@@ -853,12 +815,6 @@ async def extract_visible_semantic_text(page) -> dict:
                 });
             }
 
-            /*
-             * متن‌های مستقیم که در دسته‌های بالا قرار نگرفته‌اند.
-             *
-             * فقط direct text گرفته می‌شود تا متن فرزندان چندین بار
-             * تکرار نشود.
-             */
             const semanticContainer = [
                 "h1", "h2", "h3", "h4", "h5", "h6",
                 "nav",
@@ -925,8 +881,6 @@ async def scrape_url(
     )
     network_responses = []
     network_requests = []
-    # executable_path = find_chromium_executable()
-    # print(f"[*] Using Chromium executable: {executable_path}")
     has_auth_file = AUTH_STATE_FILE.is_file()
     async with async_playwright() as p:
         context_args = {
@@ -948,7 +902,6 @@ async def scrape_url(
             logger.warning("Authentication state file is unavailable")
 
         browser = await p.chromium.launch(
-            # executable_path=executable_path,
             headless=headless_mode,
             args=[
                 "--disable-blink-features=AutomationControlled",
@@ -1003,16 +956,6 @@ async def scrape_url(
             lambda res: asyncio.create_task(capture_network(res)),
         )
 
-        # if "alibaba.ir" in target_url:
-        #     try:
-        #         await page.goto(
-        #             "https://www.alibaba.ir",
-        #             wait_until="domcontentloaded",
-        #             timeout=20000,
-        #         )
-        #         await human_pause(page, 1000, 2000)
-        #     except Exception:
-        #         pass
 
         logger.info("Navigating to configured provider")
         try:
@@ -1037,14 +980,18 @@ async def scrape_url(
             screenshot_path = (
                     output_dir / "captcha.png"
             )
-            await page.screenshot(
-                path=str(screenshot_path),
-                full_page=True,
+            captured_screenshot = await capture_page_screenshot(
+                page,
+                screenshot_path,
             )
             await browser.close()
             return {
                 "status": captcha_status,
-                "screenshot": str(screenshot_path),
+                "screenshot": (
+                    str(captured_screenshot)
+                    if captured_screenshot
+                    else None
+                ),
             }
 
         await human_like_scroll(page, max_steps=30)
@@ -1065,9 +1012,9 @@ async def scrape_url(
         screenshot_path = (
                 output_dir / "screenshot.png"
         )
-        await page.screenshot(
-            path=str(screenshot_path),
-            full_page=True,
+        captured_screenshot = await capture_page_screenshot(
+            page,
+            screenshot_path,
         )
 
         extracted_texts = await extract_visible_texts_with_ids(page)
@@ -1082,24 +1029,15 @@ async def scrape_url(
             encoding="utf-8",
         )
 
-        if has_auth_file:
-            try:
-                await context.storage_state(
-                    path=str(AUTH_STATE_FILE),
-                    indexed_db=True,
-                )
-            except TypeError:
-                await context.storage_state(
-                    path=str(AUTH_STATE_FILE),
-                )
-            except Exception:
-                logger.exception("Failed to update authentication state")
-
         await browser.close()
         return {
             "status": "success",
             "url": current_url,
             "dom_path": str(dom_path),
-            "screenshot_path": str(screenshot_path),
+            "screenshot_path": (
+                str(captured_screenshot)
+                if captured_screenshot
+                else None
+            ),
             "texts_path": str(texts_path),
         }

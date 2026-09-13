@@ -1,4 +1,3 @@
-# app/infra/worker_base.py
 import logging
 import multiprocessing
 import os
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 60
 IDLE_SLEEP = 5
-SWEEP_INTERVAL = 300  # هر ۵ دقیقه جاب‌های گیرکرده رو آزاد کن
+SWEEP_INTERVAL = 300
 
 
 def _process_target(handler, payload, connection, directory, parent_pid):
@@ -105,7 +104,7 @@ def run_handler_in_process(handler, payload: dict, timeout: int, *, job_id: int 
                         elif kind == "result":
                             result_received = True
                             error = value
-                    else:  # Compatibility with a child started from older code.
+                    else:
                         result_received = True
                         error = message
 

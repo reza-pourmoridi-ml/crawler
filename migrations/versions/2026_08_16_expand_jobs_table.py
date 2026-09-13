@@ -1,4 +1,3 @@
-# migrations/versions/2026_08_16_expand_jobs_table.py
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
@@ -18,7 +17,7 @@ def upgrade() -> None:
     op.add_column("jobs", sa.Column("run_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
     op.add_column("jobs", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
     op.create_index("idx_jobs_pending", "jobs", ["type", "run_at"], postgresql_where=sa.text("status = 'pending'"))
-    op.drop_column("jobs", "name")  # دیگه لازم نیست، payload جاش رو می‌گیره
+    op.drop_column("jobs", "name")
 
 
 def downgrade() -> None:

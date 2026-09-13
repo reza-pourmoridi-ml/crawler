@@ -1,4 +1,3 @@
-# app/infra/db.py
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.infra.config import settings
@@ -26,7 +25,7 @@ def get_db():
 
 
 def run_migrations():
-    root_dir = Path(__file__).resolve().parents[2]   # crawler/
+    root_dir = Path(__file__).resolve().parents[2]
     alembic_ini = root_dir / "alembic.ini"
 
     if not alembic_ini.exists():
@@ -34,4 +33,3 @@ def run_migrations():
 
     config = Config(str(alembic_ini))
     command.upgrade(config, "head")
-

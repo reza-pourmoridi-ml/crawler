@@ -58,20 +58,19 @@ def scenario_retry_backoff():
     job_id = enqueue("test.fail", {}, max_attempts=2)
 
     job = fetch_job(["test.fail"])
-    mark_failed(job["id"])  # attempt 1/2 -> pending با backoff
+    mark_failed(job["id"])
     with SessionLocal() as db:
         row = db.execute(text("SELECT status, run_at FROM jobs WHERE id=:id"), {"id": job_id}).fetchone()
     assert row.status == "pending"
     assert row.run_at > datetime.now(timezone.utc), "باید backoff داشته باشه"
     log.info("attempt 1 fail -> pending تا %s", row.run_at)
 
-    # زمان رو دستی جلو می‌بریم تا نیازی به sleep واقعی نباشه
     with SessionLocal() as db:
         db.execute(text("UPDATE jobs SET run_at = NOW() WHERE id=:id"), {"id": job_id})
         db.commit()
 
     job = fetch_job(["test.fail"])
-    mark_failed(job["id"])  # attempt 2/2 -> failed نهایی
+    mark_failed(job["id"])
     with SessionLocal() as db:
         status = db.execute(text("SELECT status FROM jobs WHERE id=:id"), {"id": job_id}).scalar()
     assert status == "failed"

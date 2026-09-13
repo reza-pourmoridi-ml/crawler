@@ -47,7 +47,6 @@ def extract_dom_layers(html: str) -> List[str]:
     for root_tag in top_level_tags:
         for child in root_tag.children:
             if isinstance(child, Tag):
-                # بررسی اینکه آیا این فرزند خودش والد است (حداقل یک فرزند تگی دارد)
                 has_child_tag = any(isinstance(c, Tag) for c in child.children)
                 if has_child_tag:
                     parents_html.append(str(child))
@@ -135,10 +134,8 @@ def fast_safe_extraction(
     if not file_path.is_file():
         raise ValueError(f"مسیر داده‌شده یک فایل نیست: {file_path}")
 
-    # خواندن محتوای HTML
     html = file_path.read_text(encoding="utf-8")
 
-    # استخراج اولین سطح DOM
     current_layers = extract_dom_layers(html)
 
     final_layers = []
@@ -160,7 +157,6 @@ def fast_safe_extraction(
             has_time = check["time"] is True
             valid_length = check["length"] is True
 
-            # بررسی و فیلتر کارت‌ها
             if has_price and has_time and valid_length:
                 if kill_process(chunk):
                     final_layers.append(chunk)
@@ -169,7 +165,6 @@ def fast_safe_extraction(
                     if children:
                         next_layers.extend(children)
             else:
-                # بررسی فرزندان حتی اگر والد مستقیم فاقد ساختار کامل کارت باشد
                 children = extract_dom_layers(chunk)
                 if children:
                     next_layers.extend(children)
@@ -180,13 +175,10 @@ def fast_safe_extraction(
         current_layers = next_layers
         layer_number += 1
 
-    # حذف HTMLهای تکراری
     unique_final_layers = list(dict.fromkeys(final_layers))
     
-    # نام‌گذاری خروجی
     output_filename = f"{output_prefix}_{number:03d}.json"
 
-    # ذخیره در پوشه اختصاصی
     output_path = save_final_layers(
         unique_final_layers,
         filename=output_filename,

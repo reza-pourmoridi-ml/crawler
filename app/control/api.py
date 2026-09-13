@@ -33,9 +33,6 @@ templates = Jinja2Templates(
 )
 
 
-# =========================================================
-# Dashboard
-# =========================================================
 
 @router.get(
     "/dashboard",
@@ -59,9 +56,6 @@ async def get_api_status():
     }
 
 
-# =========================================================
-# Airlines list page
-# =========================================================
 
 @router.get(
     "/airlines/page",
@@ -82,9 +76,6 @@ def airlines_page(
     )
 
 
-# =========================================================
-# Airlines API
-# =========================================================
 
 @router.get(
     "/airlines",
@@ -173,9 +164,6 @@ def update_airline(
         )
 
 
-# =========================================================
-# Airline create, detail, edit and delete pages
-# =========================================================
 
 @router.get("/airlines/page/new", response_class=HTMLResponse)
 def airline_create_page(request: Request):

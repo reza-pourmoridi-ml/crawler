@@ -1,4 +1,3 @@
-# app/orchestration/models.py
 from datetime import datetime, timezone
 from app.infra.db import Base
 from sqlalchemy.orm import Mapped, mapped_column
@@ -10,7 +9,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    type: Mapped[str] = mapped_column(String(100), index=True)       # مثلاً "extraction.crawl_alibaba"
+    type: Mapped[str] = mapped_column(String(100), index=True)
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)

@@ -53,7 +53,6 @@ def create_scrape_jobs(requests: list[dict]) -> None:
                     "snapshot_id": uuid4().hex,
                 }
                 try:
-                    # Incomplete website/path configuration must not create retrying jobs.
                     build_scrape_url(
                         db, website_id, payload["route_type"], payload["origin_airport_id"],
                         payload["destination_airport_id"], date.fromisoformat(payload["departure_date"]),
@@ -88,7 +87,6 @@ def plan_followups(jobs: list[dict]) -> list[tuple[str, dict]]:
     for job in jobs:
         payload = job["payload"]
         if job["type"] == EXTRACTOR:
-            # Includes terminal failures: the queue owns bounded retries.
             extracted_sources.add(payload.get("source_job_id"))
         elif job["type"] == LEARN:
             key = (payload["website_id"], payload["route_type"])

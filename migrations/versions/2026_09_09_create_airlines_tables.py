@@ -11,7 +11,6 @@ depends_on = None
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-    # 1. Airlines
     op.create_table(
         "airlines",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -29,7 +28,6 @@ def upgrade() -> None:
         ),
     )
 
-    # 2. Airline aliases
     op.create_table(
         "airline_aliases",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -57,7 +55,6 @@ def upgrade() -> None:
         ["airline_id"],
     )
 
-    # Fuzzy search index
     op.execute(
         """
         CREATE INDEX idx_alias_name_trgm

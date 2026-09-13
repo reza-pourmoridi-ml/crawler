@@ -33,7 +33,6 @@ def learned_path(website_id: int, route_type: str) -> Path:
 
 
 def snapshot_directory(payload: dict) -> Path:
-    # A separate directory per crawl prevents a later crawl overwriting learn input.
     snapshot_id = str(payload["snapshot_id"])
     if len(snapshot_id) != 32 or any(c not in "0123456789abcdef" for c in snapshot_id):
         raise ValueError("Invalid snapshot_id")

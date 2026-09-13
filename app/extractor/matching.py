@@ -30,11 +30,9 @@ def tag_similarity(a: Tag, b: Tag) -> float:
     score = 0.0
     total = 0.0
 
-    # tag name
     total += 1
     score += 1.0 if a.name == b.name else 0.0
 
-    # classes
     total += 1
     a_classes = set(a.get("class", []))
     b_classes = set(b.get("class", []))
@@ -43,7 +41,6 @@ def tag_similarity(a: Tag, b: Tag) -> float:
     else:
         score += 1.0
 
-    # children
     total += 1
     a_children = [c for c in a.children if isinstance(c, Tag)]
     b_children = [c for c in b.children if isinstance(c, Tag)]

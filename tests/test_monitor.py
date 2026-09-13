@@ -42,6 +42,56 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(result["state"], "warning")
         self.assertEqual(result["ready"], 1)
 
+    def test_running_job_wins_over_old_queue_and_recent_errors(self):
+        result = _stage_health([
+            job(
+                status="running",
+                locked_until=NOW + timedelta(minutes=5),
+            ),
+            job(id=2, run_at=NOW - timedelta(hours=1)),
+            job(
+                id=3,
+                status="failed",
+                outcome="error",
+                finished_at=NOW - timedelta(minutes=5),
+            ),
+            job(
+                id=4,
+                status="failed",
+                outcome="error",
+                finished_at=NOW - timedelta(minutes=4),
+            ),
+            job(
+                id=5,
+                status="failed",
+                outcome="error",
+                finished_at=NOW - timedelta(minutes=3),
+            ),
+        ], "scrape", NOW)
+        self.assertEqual(result["state"], "working")
+        self.assertEqual(result["running"], 1)
+
+    def test_success_after_recent_errors_clears_warning(self):
+        jobs = [
+            job(
+                id=index,
+                status="failed",
+                outcome="error",
+                finished_at=NOW - timedelta(minutes=10 - index),
+            )
+            for index in range(1, 4)
+        ]
+        jobs.append(job(
+            id=4,
+            status="completed",
+            outcome="success",
+            finished_at=NOW - timedelta(minutes=1),
+        ))
+
+        result = _stage_health(jobs, "scrape", NOW)
+
+        self.assertEqual(result["state"], "idle")
+
     def test_monitor_does_not_expose_route_or_snapshot_payload(self):
         item = job()
         item.payload.update({
@@ -70,6 +120,44 @@ class MonitorTests(unittest.TestCase):
             "free_bytes": 1, "used_percent": 1,
         }
         self.assertEqual(collect_status()["overall"], "warning")
+
+    @patch("app.monitor.service._storage_snapshot")
+    @patch("app.monitor.service._ollama_snapshot")
+    @patch("app.monitor.service._database_snapshot")
+    def test_row_limit_only_limits_display_not_health_counts(
+        self,
+        database,
+        ollama,
+        storage,
+    ):
+        database.return_value = (
+            {"state": "ok", "message": "ok", "latency_ms": 1},
+            [
+                job(
+                    id=index,
+                    status="running",
+                    locked_until=NOW + timedelta(minutes=5),
+                )
+                for index in range(1, 9)
+            ],
+        )
+        ollama.return_value = {
+            "state": "ok", "message": "ok", "configured_model": "x",
+            "installed_models": ["x"], "loaded_models": [], "latency_ms": 1,
+        }
+        storage.return_value = {
+            "state": "ok", "message": "ok", "path": "/data",
+            "free_bytes": 1, "used_percent": 1,
+        }
+
+        result = collect_status(row_limit=5, history_hours=6)
+
+        self.assertEqual(result["counts"]["running"], 8)
+        self.assertEqual(len(result["active_jobs"]), 5)
+        self.assertEqual(result["settings"], {
+            "row_limit": 5,
+            "history_hours": 6,
+        })
 
 
 if __name__ == "__main__":

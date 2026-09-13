@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.control.search_box.models import SearchRequest
-from app.control.flight_paths.models import FlightPath  # noqa: F401
+from app.control.flight_paths.models import FlightPath
 
 from app.infra.db import SessionLocal
 from app.orchestration.jobs import advance_pipeline, create_scrape_jobs
@@ -70,7 +70,6 @@ def get_search_requests() -> list[dict]:
 def check_search_requests() -> list[dict]:
     requests = get_search_requests()
 
-    # Do not log route/date payloads: they are user search data.
     logger.info("Scheduling eligible search requests count=%s", len(requests))
 
     create_scrape_jobs(requests)

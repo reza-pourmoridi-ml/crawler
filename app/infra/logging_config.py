@@ -15,7 +15,6 @@ _REDACTIONS = (
     (re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+"), r"\1[REDACTED]"),
     (re.compile(r"(?i)(password|passwd|secret|token|cookie|session|api[_-]?key)(\s*[:=]\s*)[^\s,;&]+"), r"\1\2[REDACTED]"),
     (re.compile(r"(?i)(postgres(?:ql)?(?:\+\w+)?://[^:/\s]+:)[^@/\s]+(@)"), r"\1[REDACTED]\2"),
-    # Search parameters can be encoded in either URL paths or query strings.
     (re.compile(r"(?i)\b(https?://[^/\s?#]+)(?:[^\s]*)"), r"\1/[REDACTED_URL]"),
     (re.compile(r"\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"), "[REDACTED_JWT]"),
     (re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b"), "[REDACTED_EMAIL]"),

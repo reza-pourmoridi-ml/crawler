@@ -21,7 +21,6 @@ def log(message: str) -> None:
 async def save_auth() -> None:
     log("Starting Playwright")
 
-    # بررسی می‌کنیم آیا وضعیت ورود قبلی وجود دارد یا نه.
     has_existing_auth = AUTH_STATE_FILE.is_file()
 
     async with async_playwright() as p:
@@ -60,8 +59,6 @@ async def save_auth() -> None:
             "ignore_https_errors": True,
         }
 
-        # اگر فایل قبلی موجود است، کوکی‌ها و Local Storage آن را
-        # هنگام ساخت BrowserContext بارگذاری می‌کنیم.
         if has_existing_auth:
             context_options["storage_state"] = str(AUTH_STATE_FILE)
             log(f"Loading existing auth state: {AUTH_STATE_FILE}")
@@ -118,13 +115,11 @@ async def save_auth() -> None:
             log("Saving authentication state")
 
             try:
-                # Playwrightهای جدید می‌توانند IndexedDB را نیز ذخیره کنند.
                 await context.storage_state(
                     path=str(AUTH_STATE_FILE),
                     indexed_db=True,
                 )
             except TypeError:
-                # سازگاری با نسخه‌هایی که indexed_db را پشتیبانی نمی‌کنند.
                 await context.storage_state(
                     path=str(AUTH_STATE_FILE),
                 )

@@ -136,8 +136,6 @@ def jalali_to_gregorian(
         gd,
     )
 
-    # باعث می‌شود تاریخ‌های نامعتبر
-    # مثل 1404-12-30 پذیرفته نشوند.
     if (
         gregorian_to_jalali(
             result

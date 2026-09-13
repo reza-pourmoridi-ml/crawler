@@ -16,7 +16,6 @@ RUN groupadd --gid 10001 appuser \
     && mkdir -p /data/auth /data/temp \
     && chown -R appuser:appuser /app /data /home/appuser
 
-# Dependency files are copied before source code so normal code edits reuse these layers.
 COPY requirements/constraints.txt requirements/base.txt /tmp/requirements/
 RUN --mount=type=cache,id=crawler-pip,target=/root/.cache/pip,sharing=locked \
     python -m pip install -r /tmp/requirements/base.txt

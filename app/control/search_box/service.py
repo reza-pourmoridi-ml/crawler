@@ -216,11 +216,6 @@ def create_search_request(
         "مقصد",
     )
 
-    # ورودی کاربر:
-    # 1405-06-20
-    #
-    # مقدار DB:
-    # 2026-09-11
     departure_date: date = (
         parse_jalali_date(
             departure_date_jalali

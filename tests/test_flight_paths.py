@@ -210,7 +210,7 @@ class FlightPathTests(unittest.IsolatedAsyncioTestCase):
             status, _, body = await self.request("GET", f"/control/flight-paths/page/{path_id}{suffix}")
             self.assertEqual(status, 200)
             self.assertIn("thr,1", body)
-        self.assertEqual(len(self.snapshot()), 4)  # GET confirmation never deletes.
+        self.assertEqual(len(self.snapshot()), 4)
         status, _, _ = await self.request(
             "POST", f"/control/flight-paths/page/{path_id}/edit",
             {"website_id": "3", "airport_name_fa": "شیراز", "code": "syz,1"},

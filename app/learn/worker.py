@@ -25,8 +25,6 @@ def _report_after(function):
 
 
 def handle_learn(payload: dict) -> None:
-    # Notebook-fidelity functions print model output/HTML errors. Keep their
-    # algorithm untouched, but prevent those payloads from entering Docker logs.
     original_hot_validate = candidates.hot_validate_html
     original_final_validation = validation.final_validation
     candidates.hot_validate_html = _report_after(original_hot_validate)

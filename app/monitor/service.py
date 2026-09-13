@@ -90,6 +90,14 @@ def _stage_health(jobs: list[Job], stage: str, now: datetime) -> dict:
         job for job in stage_jobs
         if job.outcome == "success" and job.finished_at is not None
     ]
+    latest_error_at = max(
+        (_utc(job.finished_at) for job in recent_errors),
+        default=None,
+    )
+    latest_success_at = max(
+        (_utc(job.finished_at) for job in recent_success),
+        default=None,
+    )
     oldest_ready_age = max(
         (_age_seconds(job.run_at, now) or 0 for job in ready),
         default=0,
@@ -97,16 +105,22 @@ def _stage_health(jobs: list[Job], stage: str, now: datetime) -> dict:
 
     if expired:
         state, message = "critical", "قفل job در حال اجرا منقضی شده است"
-    elif len(recent_errors) >= 3:
-        state, message = "warning", "چند خطای نهایی در یک ساعت اخیر ثبت شده است"
-    elif ready and not running and oldest_ready_age > 120:
-        state, message = "warning", "صف آماده مانده؛ worker احتمالاً پاسخ‌گو نیست"
     elif running:
         state, message = "working", "در حال پردازش"
+    elif ready and not running and oldest_ready_age > 120:
+        state, message = "warning", "صف آماده مانده؛ worker احتمالاً پاسخ‌گو نیست"
     elif ready:
         state, message = "queued", "job آمادهٔ دریافت است"
     elif scheduled:
         state, message = "queued", "retry زمان‌بندی‌شده دارد"
+    elif (
+        len(recent_errors) >= 3
+        and (
+            latest_success_at is None
+            or latest_error_at > latest_success_at
+        )
+    ):
+        state, message = "warning", "چند خطای نهایی بازیابی‌نشده ثبت شده است"
     else:
         state, message = "idle", "صف خالی است؛ سلامت worker قابل استنباط نیست"
 
@@ -127,21 +141,56 @@ def _stage_health(jobs: list[Job], stage: str, now: datetime) -> dict:
     }
 
 
-def _database_snapshot(now: datetime) -> tuple[dict, list[Job]]:
+def _database_snapshot(
+    now: datetime,
+    history_hours: int,
+) -> tuple[dict, list[Job]]:
     started = time.monotonic()
     try:
+        history_cutoff = now - timedelta(hours=history_hours)
         with SessionLocal() as db:
-            jobs = list(db.scalars(select(Job).order_by(Job.id.desc()).limit(500)))
+            active_jobs = list(db.scalars(
+                select(Job)
+                .where(Job.status.in_(("running", "pending")))
+                .order_by(Job.id.desc())
+            ))
+            recent_jobs = list(db.scalars(
+                select(Job)
+                .where(Job.finished_at >= history_cutoff)
+                .order_by(Job.id.desc())
+            ))
+            latest_successes = []
+            for stage in STAGES:
+                latest = db.scalar(
+                    select(Job)
+                    .where(
+                        Job.type == stage,
+                        Job.outcome == "success",
+                        Job.finished_at.is_not(None),
+                    )
+                    .order_by(Job.finished_at.desc())
+                    .limit(1)
+                )
+                if latest is not None:
+                    latest_successes.append(latest)
+
+        jobs_by_id = {
+            job.id: job
+            for job in (*active_jobs, *recent_jobs, *latest_successes)
+        }
+        jobs = list(jobs_by_id.values())
         return {
             "state": "ok",
             "message": "اتصال برقرار است",
             "latency_ms": round((time.monotonic() - started) * 1000),
+            "observed_jobs": len(jobs),
         }, jobs
     except Exception as exc:
         return {
             "state": "critical",
             "message": f"اتصال ناموفق: {type(exc).__name__}",
             "latency_ms": None,
+            "observed_jobs": 0,
         }, []
 
 
@@ -206,15 +255,37 @@ def _storage_snapshot() -> dict:
         }
 
 
-def collect_status() -> dict:
+def collect_status(
+    row_limit: int = 20,
+    history_hours: int = 24,
+) -> dict:
+    row_limit = max(5, min(int(row_limit), 200))
+    history_hours = max(1, min(int(history_hours), 168))
     now = datetime.now(timezone.utc)
-    database, jobs = _database_snapshot(now)
+    history_cutoff = now - timedelta(hours=history_hours)
+    database, jobs = _database_snapshot(now, history_hours)
     stages = [_stage_health(jobs, stage, now) for stage in STAGES]
     active = [job for job in jobs if job.status == "running"]
     ready = [job for job in jobs if job.status == "pending" and _utc(job.run_at) <= now]
     scheduled = [job for job in jobs if job.status == "pending" and _utc(job.run_at) > now]
-    failures = [job for job in jobs if job.status == "failed" and job.outcome == "error"]
-    successes = [job for job in jobs if job.outcome == "success"]
+    failures = [
+        job for job in jobs
+        if job.status == "failed"
+        and job.outcome == "error"
+        and job.finished_at is not None
+        and _utc(job.finished_at) >= history_cutoff
+    ]
+    successes = [
+        job for job in jobs
+        if job.outcome == "success"
+        and job.finished_at is not None
+        and _utc(job.finished_at) >= history_cutoff
+    ]
+
+    active.sort(key=lambda job: (_utc(job.created_at), job.id), reverse=True)
+    ready.sort(key=lambda job: (_utc(job.run_at), job.id))
+    failures.sort(key=lambda job: (_utc(job.finished_at), job.id), reverse=True)
+    successes.sort(key=lambda job: (_utc(job.finished_at), job.id), reverse=True)
 
     ollama = _ollama_snapshot()
     storage = _storage_snapshot()
@@ -241,6 +312,10 @@ def collect_status() -> dict:
     return {
         "generated_at": now.isoformat(),
         "overall": overall,
+        "settings": {
+            "row_limit": row_limit,
+            "history_hours": history_hours,
+        },
         "components": {
             "database": database,
             "ollama": ollama,
@@ -254,8 +329,8 @@ def collect_status() -> dict:
             "scheduled": len(scheduled),
             "final_errors": len(failures),
         },
-        "active_jobs": [_job_view(job, now) for job in active[:20]],
-        "ready_jobs": [_job_view(job, now) for job in ready[:20]],
-        "recent_failures": [_job_view(job, now) for job in failures[:10]],
-        "recent_successes": [_job_view(job, now) for job in successes[:10]],
+        "active_jobs": [_job_view(job, now) for job in active[:row_limit]],
+        "ready_jobs": [_job_view(job, now) for job in ready[:row_limit]],
+        "recent_failures": [_job_view(job, now) for job in failures[:row_limit]],
+        "recent_successes": [_job_view(job, now) for job in successes[:row_limit]],
     }

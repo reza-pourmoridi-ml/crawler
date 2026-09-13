@@ -499,6 +499,10 @@
             جستجوی پرواز
         </a>
 
+        <a href="/control/auth/page" {% if request.url.path.startswith('/control/auth') %}aria-current="page"{% endif %}>
+            Auth
+        </a>
+
         <a href="/control/airlines/page" {% if request.url.path.startswith('/control/airlines') %}aria-current="page"{% endif %}>
             ایرلاین‌ها
         </a>

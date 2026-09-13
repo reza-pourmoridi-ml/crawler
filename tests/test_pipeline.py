@@ -66,7 +66,6 @@ class NotebookFidelityTests(unittest.TestCase):
     def test_airline_adapter_matches_notebook_with_same_dictionary(self):
         source = json.loads((ROOT / 'test-ollama.ipynb').read_text())['cells'][10]['source']
         nodes = ast.parse(''.join(source)).body
-        # Execute definitions and constants only, excluding the Kaggle batch call.
         nodes = [node for node in nodes if not (
             isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'results' for t in node.targets)
         )]

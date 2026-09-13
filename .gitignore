@@ -1,4 +1,3 @@
-# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,25 +8,22 @@ __pycache__/
 .coverage.*
 htmlcov/
 
-# Virtual environments
 .venv/
 venv/
 env/
 
-# Environment variables and secrets
 .env
 .env.*
 !.env.example
 !.env.docker.example
 !.env.production.example
+app/auth/auth.json
 
-# IDEs and editors
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Runtime storage
 storage/**
 !storage/README.md
 !storage/raw/
@@ -41,24 +37,20 @@ storage/**
 !storage/auth/
 !storage/auth/.gitkeep
 
-# R&D data and generated evaluation results
 alibaba_raw_data/
 daily_test_results.jsonl
 daily_test_state.json
 llm_eval_results.json
 scoring_eval_results.json
 
-# Build and packaging artifacts
 build/
 dist/
 *.egg-info/
 node_modules/
 
-# Logs and temporary files
 *.log
 *.tmp
 *.temp
 
-# Operating-system files
 .DS_Store
 Thumbs.db
