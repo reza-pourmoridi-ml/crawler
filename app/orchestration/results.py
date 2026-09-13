@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.control.airlines.models import Airline
 from app.control.search_box.models import (
+    SearchAirlinePrice,
     SearchLowestPrice,
     SearchProviderResult,
     SearchRequest,
@@ -221,3 +222,22 @@ def get_search_result(db: Session, search_request_id: int) -> dict:
     if db.get(SearchRequest, search_request_id) is None:
         raise SearchResultNotFoundError(f"Search request {search_request_id} not found.")
     return get_search_results(db, [search_request_id])[search_request_id]
+
+
+def get_provider_airline_prices(db: Session, search_request_id: int) -> list[dict]:
+    """Return each airline's persisted minimum separately for every provider."""
+    rows = db.execute(
+        select(SearchAirlinePrice, Airline.official_name_fa)
+        .join(Airline, Airline.id == SearchAirlinePrice.airline_id)
+        .where(SearchAirlinePrice.search_request_id == search_request_id)
+        .order_by(Airline.official_name_fa, SearchAirlinePrice.website_id)
+    ).all()
+    return [
+        {
+            "airline": airline,
+            "website_id": price.website_id,
+            "price": price.price,
+            "time": price.departure_time,
+        }
+        for price, airline in rows
+    ]

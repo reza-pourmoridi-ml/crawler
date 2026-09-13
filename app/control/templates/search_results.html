@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% set status_labels = {
+    'waiting': 'در انتظار شروع پردازش',
+    'processing': 'در حال جمع‌آوری قیمت‌ها',
+    'partial': 'نتایج موقت؛ بعضی وب‌سایت‌ها هنوز آماده نیستند',
+    'completed': 'نتایج کامل شده‌اند',
+    'failed': 'دریافت نتیجه ناموفق بود'
+} %}
+{% set provider_status_labels = {
+    'scraping': 'در حال دریافت صفحه',
+    'processing': 'در حال استخراج',
+    'updating': 'در حال به‌روزرسانی',
+    'ready': 'آماده',
+    'stale': 'نتیجه قدیمی',
+    'failed': 'ناموفق',
+    'waiting': 'در انتظار'
+} %}
+
+{% block title %}نتایج جستجوی پرواز{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>نتایج جستجوی پرواز</h1>
+        <p class="help-text">
+            {{ search_request.origin_airport.name_fa }} به {{ search_request.destination_airport.name_fa }}
+            — <bdi>{{ search_request.departure_date_jalali }}</bdi>
+        </p>
+    </div>
+    <a class="button button-secondary" href="/control/search-box/page">بازگشت به جستجو</a>
+</div>
+
+<div id="search-result-content">
+    <div class="result-summary-card">
+        <div>
+            <span class="status-badge status-{{ result.status }}">{{ status_labels[result.status] }}</span>
+            <strong>{{ airline_rows | length }} ایرلاین</strong>
+        </div>
+    </div>
+
+    {% if airline_rows %}
+        <div class="table-wrap">
+            <table class="results-table provider-price-matrix">
+                <thead>
+                    <tr>
+                        <th>ایرلاین</th>
+                        {% for provider in result.providers %}
+                            <th>{{ provider.website_name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in airline_rows %}
+                        <tr>
+                            <td class="airline-name-cell">{{ row.airline }}</td>
+                            {% for provider in result.providers %}
+                                {% set offer = row.providers.get(provider.website_id) %}
+                                <td>
+                                    {% if offer %}
+                                        <strong class="price-cell"><bdi>{{ "{:,}".format(offer.price) }}</bdi></strong>
+                                        <small class="offer-time">ساعت <bdi>{{ offer.time or '—' }}</bdi></small>
+                                    {% else %}
+                                        <span class="no-offer">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="empty-state compact-empty-state">نتیجه‌ها به‌محض آماده‌شدن در همین صفحه نمایش داده می‌شوند.</div>
+    {% endif %}
+
+    <section class="provider-section">
+        <h2>وضعیت فروشنده‌ها</h2>
+        {% if result.providers %}
+            <div class="provider-grid">
+                {% for provider in result.providers %}
+                    <article class="provider-card">
+                        <strong>{{ provider.website_name }}</strong>
+                        <span class="status-badge status-{{ provider.status }}">{{ provider_status_labels[provider.status] }}</span>
+                        <span class="help-text">{{ provider.offers_count }} پیشنهاد معتبر</span>
+                        <span class="help-text">
+                            آخرین به‌روزرسانی:
+                            {% if provider.updated_at_tehran %}
+                                <bdi>{{ provider.updated_at_tehran.strftime('%Y-%m-%d %H:%M:%S') }}</bdi>
+                            {% else %}
+                                هنوز داده‌ای ثبت نشده است
+                            {% endif %}
+                        </span>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="help-text">هنوز پردازشی برای فروشنده‌ها شروع نشده است.</p>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+(() => {
+    let refreshing = false;
+    async function refreshResults() {
+        if (refreshing || document.hidden) return;
+        refreshing = true;
+        try {
+            const response = await fetch(window.location.href, {cache: "no-store"});
+            if (!response.ok) return;
+            const page = new DOMParser().parseFromString(await response.text(), "text/html");
+            const current = document.getElementById("search-result-content");
+            const fresh = page.getElementById("search-result-content");
+            if (current && fresh) current.replaceWith(fresh);
+        } finally { refreshing = false; }
+    }
+    window.setInterval(refreshResults, 5000);
+})();
+</script>
+{% endblock %}

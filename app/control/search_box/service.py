@@ -107,6 +107,13 @@ def get_search_requests(
     )
 
 
+def get_search_request(
+    db: Session,
+    search_request_id: int,
+) -> SearchRequest | None:
+    return repo.get_search_request(db, search_request_id)
+
+
 def require_airport(
     db: Session,
     airport_id: int,

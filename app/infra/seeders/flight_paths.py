@@ -12,22 +12,28 @@ from app.infra.seeders.database import get_seed_session
 FLIGHT_PATHS = [
     {"website_name": "علی‌بابا", "airport_name_fa": "تهران", "code": "THR"},
     {"website_name": "علی‌بابا", "airport_name_fa": "مشهد", "code": "MHD"},
+    {"website_name": "علی‌بابا", "airport_name_fa": "استانبول", "code": "ISTALL"},
+    {"website_name": "علی‌بابا", "airport_name_fa": "دبی", "code": "DXBALL"},
 
     {"website_name": "اسنپ‌تریپ", "airport_name_fa": "تهران", "code": "THR_city"},
     {"website_name": "اسنپ‌تریپ", "airport_name_fa": "مشهد", "code": "MHD_city"},
     {"website_name": "اسنپ‌تریپ", "airport_name_fa": "استانبول", "code": "IST_city"},
+    {"website_name": "اسنپ‌تریپ", "airport_name_fa": "دبی", "code": "DXB_city"},
 
     {"website_name": "فلای‌تودی", "airport_name_fa": "تهران", "code": "thr,1"},
     {"website_name": "فلای‌تودی", "airport_name_fa": "مشهد", "code": "mhd,1"},
     {"website_name": "فلای‌تودی", "airport_name_fa": "استانبول", "code": "ist,1"},
+    {"website_name": "فلای‌تودی", "airport_name_fa": "دبی", "code": "dxb,1"},
 
     {"website_name": "مستربلیط", "airport_name_fa": "تهران", "code": "THR"},
     {"website_name": "مستربلیط", "airport_name_fa": "مشهد", "code": "MHD"},
     {"website_name": "مستربلیط", "airport_name_fa": "استانبول", "code": "ISTALL"},
+    {"website_name": "مستربلیط", "airport_name_fa": "دبی", "code": "DXBALL"},
 
     {"website_name": "قاصدک ۲۴", "airport_name_fa": "تهران", "code": "THR"},
     {"website_name": "قاصدک ۲۴", "airport_name_fa": "مشهد", "code": "MHD"},
     {"website_name": "قاصدک ۲۴", "airport_name_fa": "استانبول", "code": "ISTALL"},
+    {"website_name": "قاصدک ۲۴", "airport_name_fa": "دبی", "code": "DXBALL"},
 ]
 
 

@@ -12,6 +12,7 @@ from app.extractor.service import extract_tickets
 from app.infra.config import Settings, settings
 from app.infra.storage import learned_path, read_templates, read_tickets, write_json_atomic
 from app.learn.service import learn_website, merge_templates
+from app.learn.validation import process_file_validation
 from app.learn.worker import handle_learn, main as learn_worker_main
 
 
@@ -91,6 +92,41 @@ class LearnTemplateTests(unittest.TestCase):
         self.assertEqual(saved[0], existing)
         self.assertEqual([template['html'] for template in saved], [existing['html'], '<b>new</b>', '<b>other</b>'])
 
+    def test_new_template_limit_prefers_distinct_html_designs(self):
+        compact = [
+            (
+                f'<article class="ticket compact" id="ticket-{number}" data-price="{number}000000">'
+                f'<span class="airline">Airline {number}</span>'
+                f'<span class="time">{number:02d}:00</span>'
+                '</article>'
+            )
+            for number in range(1, 5)
+        ]
+        compact[1] = compact[1].replace('ticket compact', 'compact ticket')
+        grid = [
+            (
+                f'<article class="grid ticket" id="result-{number}" data-airline="airline-{number}">'
+                f'<span class="airline">Other Airline {number}</span>'
+                f'<span class="time">{number + 10:02d}:30</span>'
+                '</article>'
+            )
+            for number in range(1, 3)
+        ]
+        detailed = (
+            '<article class="ticket"><div class="body">'
+            '<span class="price">9,000,000</span>'
+            '</div></article>'
+        )
+        tickets = [*compact, compact[0], *grid, detailed]
+
+        with patch.object(settings, 'learn_max_new_templates', 5):
+            saved = merge_templates([], tickets, self.snapshot_id)
+
+        self.assertEqual(
+            [template['html'] for template in saved],
+            [compact[0], grid[0], detailed, compact[1], grid[1]],
+        )
+
     def test_duplicate_only_run_preserves_original_provenance(self):
         existing = self.template(1)
         self.assertEqual(merge_templates([existing], [existing['html']] * 30, self.snapshot_id), [existing])
@@ -135,6 +171,51 @@ class LearnTemplateTests(unittest.TestCase):
             self.run_learn([])
         self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
 
+    def test_validated_templates_are_persisted_incrementally(self):
+        path = learned_path(1, 'domestic')
+        existing = self.template(1)
+        write_json_atomic(path, [existing])
+        first = '<article class="ticket compact">first</article>'
+        second = '<article class="ticket detailed"><div>second</div></article>'
+        snapshots = []
+
+        def interrupted_validation(*_args, on_validated_ticket, **_kwargs):
+            on_validated_ticket(first)
+            snapshots.append(read_tickets(path))
+            on_validated_ticket(second)
+            snapshots.append(read_tickets(path))
+            raise RuntimeError('validation interrupted')
+
+        with patch('app.learn.service.fast_safe_extraction', return_value={'output_file': 'candidates.json'}), \
+             patch('app.learn.service.process_file_validation', side_effect=interrupted_validation), \
+             self.assertRaisesRegex(RuntimeError, 'validation interrupted'):
+            learn_website(self.root / 'page.html', 1, 'domestic', self.snapshot_id)
+
+        self.assertEqual(snapshots, [
+            [existing['html'], first],
+            [existing['html'], first, second],
+        ])
+        self.assertEqual(read_tickets(path), snapshots[-1])
+
+    def test_validation_notifies_only_after_a_ticket_is_valid(self):
+        candidates_path = self.root / 'candidates.json'
+        tickets = ['<article>first</article>', '<section>invalid</section>', '<article>second</article>']
+        write_json_atomic(candidates_path, tickets)
+        notified = []
+
+        with patch('app.learn.validation.final_kill_process', return_value=False), \
+             patch('app.learn.validation.final_validation', side_effect=[(True, .9), (False, .1), (True, .8)]), \
+             patch('app.learn.validation.extract_dom_layers', return_value=[]):
+            result = process_file_validation(
+                candidates_path,
+                1,
+                output_dir=self.root / 'validated',
+                on_validated_ticket=notified.append,
+            )
+
+        self.assertEqual(notified, [tickets[0], tickets[2]])
+        self.assertEqual(read_tickets(Path(result['output_path'])), notified)
+
     def test_invalid_existing_data_is_not_silently_replaced(self):
         path = learned_path(1, 'domestic')
         path.parent.mkdir(parents=True)
@@ -175,6 +256,26 @@ class LearnTemplateTests(unittest.TestCase):
             learn_worker_main()
         self.assertEqual(run.call_args.args[2], {'learn': settings.learn_hard_timeout})
         self.assertEqual(run.call_args.kwargs['idle_timeouts'], {'learn': settings.learn_job_timeout})
+
+    def test_worker_reports_real_extraction_and_validation_progress(self):
+        from app.learn import candidates, validation
+
+        def exercise_learn(*_args):
+            candidates.hot_validate_html('<article></article>')
+            validation.final_validation('<article></article>')
+
+        payload = {
+            'search_request_id': 1,
+            'website_id': 1,
+            'route_type': 'domestic',
+            'snapshot_id': self.snapshot_id,
+        }
+        with patch('app.learn.worker.learn_website', side_effect=exercise_learn), \
+             patch('app.learn.worker.candidates.hot_validate_html'), \
+             patch('app.learn.worker.validation.final_validation'), \
+             patch('app.learn.worker.report_progress') as progress:
+            handle_learn(payload)
+        self.assertEqual(progress.call_count, 3)
 
     def test_nonpositive_limits_are_rejected(self):
         for field in ['learn_max_new_templates', 'learn_max_templates', 'learn_job_timeout', 'learn_hard_timeout']:

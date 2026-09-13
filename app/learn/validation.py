@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import requests
 from bs4 import BeautifulSoup, Tag
@@ -18,6 +18,7 @@ except ImportError:  # Progress output is optional in minimal worker environment
         return iterable
 
 from app.infra.config import settings
+
 OLLAMA_BASE_URL = settings.ollama_host.rstrip("/")
 OLLAMA_API_URL = f"{OLLAMA_BASE_URL}/api/generate"
 MODEL_NAME = settings.ollama_model
@@ -375,6 +376,7 @@ def process_file_validation(
     file_path,
     file_number,
     output_dir="storage/temp/validated_tickets",
+    on_validated_ticket: Callable[[str], None] | None = None,
 ):
     """
     یک فایل final_layers را پردازش می‌کند و خروجی متناظر آن را می‌سازد.
@@ -417,6 +419,8 @@ def process_file_validation(
 
             if is_ticket:
                 validated_tickets.append(chunk)
+                if on_validated_ticket is not None:
+                    on_validated_ticket(chunk)
             else:
                 children = extract_dom_layers(chunk)
                 if children:

@@ -257,8 +257,6 @@
             align-items: center;
             gap: 8px;
             min-width: 220px;
-        }
-
         .airport-code-input {
             min-width: 140px;
             width: 100%;
@@ -277,10 +275,10 @@
     display: grid;
 
     grid-template-columns:
-        .8fr
+        .7fr
         1fr
         1fr
-        1fr
+        1.7fr
         auto;
 
     gap: 16px;
@@ -347,10 +345,88 @@
 }
 
 
-#departure-date-jalali {
-    text-align: center;
+.jalali-date-field {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
 
-    direction: ltr;
+.jalali-date-field legend {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.jalali-date-selects {
+    display: grid;
+    grid-template-columns: .7fr 1.3fr 1fr;
+    gap: 8px;
+}
+
+.jalali-date-selects label span {
+    display: block;
+    margin-bottom: 4px;
+    color: #94a3b8;
+    font-size: .75rem;
+}
+
+.result-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 3px 9px;
+    border: 1px solid #475569;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #cbd5e1;
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
+.status-completed, .status-ready { border-color: #166534; color: #86efac; }
+.status-partial, .status-processing, .status-updating, .status-scraping { border-color: #1d4ed8; color: #93c5fd; }
+.status-failed, .status-stale { border-color: #991b1b; color: #fca5a5; }
+
+.result-summary-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding: 16px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0f172a;
+}
+
+.result-summary-card > div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.price-cell { color: #86efac; font-weight: 700; }
+.provider-price-matrix th:not(:first-child),
+.provider-price-matrix td:not(:first-child) { text-align: center; min-width: 150px; }
+.airline-name-cell { position: sticky; right: 0; min-width: 120px; background: #1e293b; font-weight: 700; }
+.provider-price-matrix thead .airline-name-cell,
+.provider-price-matrix th:first-child { position: sticky; right: 0; z-index: 2; }
+.offer-time { display: block; margin-top: 3px; color: #94a3b8; font-weight: 400; }
+.no-offer { color: #64748b; }
+.provider-section { margin-top: 30px; }
+.provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.provider-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; }
+
+@media (max-width: 800px) {
+    .provider-grid { grid-template-columns: 1fr; }
 }
 
 

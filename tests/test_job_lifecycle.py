@@ -57,7 +57,7 @@ class WorkerCleanupTests(unittest.TestCase):
             with patch.object(settings, 'storage_root', directory):
                 with self.assertRaises(TimeoutError):
                     run_handler_in_process(leave_scratch_and_wait,
-                                           {'marker': str(marker), 'started': str(started)}, 1)
+                                           {'marker': str(marker), 'started': str(started)}, 2)
             self.assertTrue(started.exists())
             self.assertFalse(Path(started.read_text()).exists())
             time.sleep(2)

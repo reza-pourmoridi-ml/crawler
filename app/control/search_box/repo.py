@@ -63,3 +63,18 @@ def get_all_search_requests(
     return list(
         db.scalars(statement).all()
     )
+
+
+def get_search_request(
+    db: Session,
+    search_request_id: int,
+) -> SearchRequest | None:
+    statement = (
+        select(SearchRequest)
+        .options(
+            joinedload(SearchRequest.origin_airport),
+            joinedload(SearchRequest.destination_airport),
+        )
+        .where(SearchRequest.id == search_request_id)
+    )
+    return db.scalar(statement)

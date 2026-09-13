@@ -1,4 +1,37 @@
+x-local-code: &local-code
+  volumes:
+    - type: bind
+      source: ./app
+      target: /app/app
+      read_only: true
+  develop:
+    watch:
+      - action: restart
+        path: ./app
+        ignore:
+          - "**/__pycache__/"
+          - "**/*.pyc"
+
 services:
+  control:
+    <<: *local-code
+
+  orchestrator:
+    <<: *local-code
+
+  scraper:
+    <<: *local-code
+
+  learn:
+    <<: *local-code
+
+  extractor:
+    <<: *local-code
+
   ollama:
     ports:
       - "127.0.0.1:${OLLAMA_PUBLISHED_PORT:-11434}:11434"
+    deploy:
+      resources:
+        limits:
+          memory: 10G

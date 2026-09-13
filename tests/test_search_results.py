@@ -16,7 +16,7 @@ from app.control.search_box.schemas import SearchResultResponse
 from app.control.websites.models import Website
 from app.extractor.repo import save_provider_minimums
 from app.infra.db import Base
-from app.orchestration.results import aggregate_search_result
+from app.orchestration.results import aggregate_search_result, get_provider_airline_prices
 
 
 class StoredSearchPriceTests(unittest.TestCase):
@@ -169,6 +169,21 @@ class StoredSearchPriceTests(unittest.TestCase):
         prices, providers = self.records()
         self.assertEqual([(row["airline"], row["price"]) for row in prices], [("ماهان", 4_000_000)])
         self.assertEqual(providers[0]["source_job_id"], 12)
+
+    def test_reads_each_airline_minimum_separately_for_every_provider(self):
+        self.save(1, 10, [
+            {"airline": "ماهان", "price": 3_000_000, "time": "10:00"},
+            {"airline": "زاگرس", "price": 2_000_000, "time": "12:00"},
+        ])
+        self.save(2, 11, [
+            {"airline": "ماهان", "price": 2_500_000, "time": "14:00"},
+        ])
+        with Session(self.engine) as db:
+            offers = get_provider_airline_prices(db, 7)
+        self.assertEqual(
+            [(item["airline"], item["website_id"], item["price"]) for item in offers],
+            [("زاگرس", 1, 2_000_000), ("ماهان", 1, 3_000_000), ("ماهان", 2, 2_500_000)],
+        )
 
     def test_late_old_worker_cannot_overwrite_newer_persisted_result(self):
         self.save(1, 12, [{"airline": "ماهان", "price": 4_000_000, "time": "12:00"}])
